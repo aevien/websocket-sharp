@@ -5,7 +5,7 @@ using WebSocketSharp.Server;
 
 namespace Example3
 {
-  public class Chat : WebSocketBehavior
+  public class Chat : WebSocketServiceBehavior
   {
     private string     _name;
     private static int _number = 0;

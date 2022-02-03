@@ -8,7 +8,7 @@
  * The MIT License
  *
  * Copyright (c) 2005 Novell, Inc. (http://www.novell.com)
- * Copyright (c) 2012-2016 sta.blockhead
+ * Copyright (c) 2012-2021 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -227,8 +227,8 @@ namespace WebSocketSharp.Net
     ///   </para>
     ///   <para>
     ///   If this property is <see langword="null"/> or an empty string,
-    ///   the result of <c>System.Environment.GetFolderPath (
-    ///   <see cref="Environment.SpecialFolder.ApplicationData"/>)</c>
+    ///   the result of <c>System.Environment.GetFolderPath (<see
+    ///   cref="Environment.SpecialFolder.ApplicationData"/>)</c>
     ///   is used as the default path.
     ///   </para>
     /// </remarks>
@@ -392,8 +392,8 @@ namespace WebSocketSharp.Net
     }
 
     /// <summary>
-    /// Gets or sets the SSL configuration used to authenticate the server
-    /// and optionally the client for secure connection.
+    /// Gets the SSL configuration used to authenticate the server and
+    /// optionally the client for secure connection.
     /// </summary>
     /// <value>
     /// A <see cref="ServerSslConfiguration"/> that represents the SSL
@@ -411,13 +411,6 @@ namespace WebSocketSharp.Net
           _sslConfig = new ServerSslConfiguration ();
 
         return _sslConfig;
-      }
-
-      set {
-        if (_disposed)
-          throw new ObjectDisposedException (_objectName);
-
-        _sslConfig = value;
       }
     }
 
@@ -487,6 +480,33 @@ namespace WebSocketSharp.Net
 
     #region Private Methods
 
+    private HttpListenerAsyncResult beginGetContext (
+      AsyncCallback callback, object state
+    )
+    {
+      lock (_contextRegistrySync) {
+        if (!_listening) {
+          var msg = _disposed
+                    ? "The listener is closed."
+                    : "The listener is stopped.";
+
+          throw new HttpListenerException (995, msg);
+        }
+
+        var ares = new HttpListenerAsyncResult (callback, state);
+
+        if (_contextQueue.Count == 0) {
+          _waitQueue.Enqueue (ares);
+        }
+        else {
+          var ctx = _contextQueue.Dequeue ();
+          ares.Complete (ctx, true);
+        }
+
+        return ares;
+      }
+    }
+
     private void cleanupContextQueue (bool force)
     {
       if (_contextQueue.Count == 0)
@@ -524,7 +544,7 @@ namespace WebSocketSharp.Net
         ctx.Connection.Close (true);
     }
 
-    private void cleanupWaitQueue (Exception exception)
+    private void cleanupWaitQueue (string message)
     {
       if (_waitQueue.Count == 0)
         return;
@@ -533,8 +553,10 @@ namespace WebSocketSharp.Net
 
       _waitQueue.Clear ();
 
-      foreach (var ares in aress)
-        ares.Complete (exception);
+      foreach (var ares in aress) {
+        var ex = new HttpListenerException (995, message);
+        ares.Complete (ex);
+      }
     }
 
     private void close (bool force)
@@ -550,8 +572,8 @@ namespace WebSocketSharp.Net
       cleanupContextQueue (force);
       cleanupContextRegistry ();
 
-      var ex = new ObjectDisposedException (_objectName);
-      cleanupWaitQueue (ex);
+      var msg = "The listener is closed.";
+      cleanupWaitQueue (msg);
 
       EndPointManager.RemoveListener (this);
 
@@ -612,7 +634,9 @@ namespace WebSocketSharp.Net
                    _userCredFinder
                  );
 
-      if (user == null || !user.Identity.IsAuthenticated) {
+      var authenticated = user != null && user.Identity.IsAuthenticated;
+
+      if (!authenticated) {
         context.SendAuthenticationChallenge (schm, realm);
 
         return false;
@@ -621,26 +645,6 @@ namespace WebSocketSharp.Net
       context.User = user;
 
       return true;
-    }
-
-    internal HttpListenerAsyncResult BeginGetContext (
-      HttpListenerAsyncResult asyncResult
-    )
-    {
-      lock (_contextRegistrySync) {
-        if (!_listening)
-          throw new HttpListenerException (995);
-
-        if (_contextQueue.Count == 0) {
-          _waitQueue.Enqueue (asyncResult);
-        }
-        else {
-          var ctx = _contextQueue.Dequeue ();
-          asyncResult.Complete (ctx, true);
-        }
-
-        return asyncResult;
-      }
     }
 
     internal void CheckDisposed ()
@@ -667,7 +671,7 @@ namespace WebSocketSharp.Net
         }
         else {
           var ares = _waitQueue.Dequeue ();
-          ares.Complete (context);
+          ares.Complete (context, false);
         }
 
         return true;
@@ -736,10 +740,13 @@ namespace WebSocketSharp.Net
     ///   This listener has not been started or is currently stopped.
     ///   </para>
     /// </exception>
+    /// <exception cref="HttpListenerException">
+    /// This method is canceled.
+    /// </exception>
     /// <exception cref="ObjectDisposedException">
     /// This listener has been closed.
     /// </exception>
-    public IAsyncResult BeginGetContext (AsyncCallback callback, Object state)
+    public IAsyncResult BeginGetContext (AsyncCallback callback, object state)
     {
       if (_disposed)
         throw new ObjectDisposedException (_objectName);
@@ -756,7 +763,7 @@ namespace WebSocketSharp.Net
         throw new InvalidOperationException (msg);
       }
 
-      return BeginGetContext (new HttpListenerAsyncResult (callback, state));
+      return beginGetContext (callback, state);
     }
 
     /// <summary>
@@ -799,6 +806,9 @@ namespace WebSocketSharp.Net
     /// <exception cref="InvalidOperationException">
     /// This method was already called for <paramref name="asyncResult"/>.
     /// </exception>
+    /// <exception cref="HttpListenerException">
+    /// This method is canceled.
+    /// </exception>
     /// <exception cref="ObjectDisposedException">
     /// This listener has been closed.
     /// </exception>
@@ -818,18 +828,20 @@ namespace WebSocketSharp.Net
         throw new ArgumentException (msg, "asyncResult");
       }
 
-      if (ares.EndCalled) {
-        var msg = "This IAsyncResult instance cannot be reused.";
+      lock (ares.SyncRoot) {
+        if (ares.EndCalled) {
+          var msg = "This IAsyncResult instance cannot be reused.";
 
-        throw new InvalidOperationException (msg);
+          throw new InvalidOperationException (msg);
+        }
+
+        ares.EndCalled = true;
       }
-
-      ares.EndCalled = true;
 
       if (!ares.IsCompleted)
         ares.AsyncWaitHandle.WaitOne ();
 
-      return ares.GetContext (); // This may throw an exception.
+      return ares.Context;
     }
 
     /// <summary>
@@ -853,6 +865,9 @@ namespace WebSocketSharp.Net
     ///   This listener has not been started or is currently stopped.
     ///   </para>
     /// </exception>
+    /// <exception cref="HttpListenerException">
+    /// This method is canceled.
+    /// </exception>
     /// <exception cref="ObjectDisposedException">
     /// This listener has been closed.
     /// </exception>
@@ -873,10 +888,13 @@ namespace WebSocketSharp.Net
         throw new InvalidOperationException (msg);
       }
 
-      var ares = BeginGetContext (new HttpListenerAsyncResult (null, null));
-      ares.InGet = true;
+      var ares = beginGetContext (null, null);
+      ares.EndCalled = true;
 
-      return EndGetContext (ares);
+      if (!ares.IsCompleted)
+        ares.AsyncWaitHandle.WaitOne ();
+
+      return ares.Context;
     }
 
     /// <summary>
@@ -924,8 +942,7 @@ namespace WebSocketSharp.Net
         cleanupContextRegistry ();
 
         var msg = "The listener is stopped.";
-        var ex = new HttpListenerException (995, msg);
-        cleanupWaitQueue (ex);
+        cleanupWaitQueue (msg);
 
         EndPointManager.RemoveListener (this);
       }
