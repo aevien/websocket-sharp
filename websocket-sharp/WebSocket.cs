@@ -1491,15 +1491,7 @@ namespace WebSocketSharp
 
     private void closeAsync (PayloadData payloadData, bool send, bool received)
     {
-      Action<PayloadData, bool, bool> closer = close;
-
-      closer.BeginInvoke (
-        payloadData,
-        send,
-        received,
-        ar => closer.EndInvoke (ar),
-        null
-      );
+      AsyncHelper.Queue (() => close (payloadData, send, received));
     }
 
     private bool closeHandshake (
@@ -1986,7 +1978,7 @@ namespace WebSocketSharp
         e = _messageEventQueue.Dequeue ();
       }
 
-      _message.BeginInvoke (e, ar => _message.EndInvoke (ar), null);
+      AsyncHelper.Queue (() => _message (e));
     }
 
     private bool ping (byte[] data)
@@ -2397,14 +2389,10 @@ namespace WebSocketSharp
       Action<bool> completed
     )
     {
-      Func<Opcode, Stream, bool> sender = send;
-
-      sender.BeginInvoke (
-        opcode,
-        sourceStream,
-        ar => {
+      AsyncHelper.Queue (
+        () => {
           try {
-            var sent = sender.EndInvoke (ar);
+            var sent = send (opcode, sourceStream);
 
             if (completed != null)
               completed (sent);
@@ -2418,8 +2406,7 @@ namespace WebSocketSharp
               ex
             );
           }
-        },
-        null
+        }
       );
     }
 
@@ -2742,18 +2729,15 @@ namespace WebSocketSharp
     // As server
     internal void AcceptAsync ()
     {
-      Func<bool> acceptor = accept;
-
-      acceptor.BeginInvoke (
-        ar => {
-          var accepted = acceptor.EndInvoke (ar);
+      AsyncHelper.Queue (
+        () => {
+          var accepted = accept ();
 
           if (!accepted)
             return;
 
           open ();
-        },
-        null
+        }
       );
     }
 
@@ -3654,18 +3638,15 @@ namespace WebSocketSharp
         throw new InvalidOperationException (msg);
       }
 
-      Func<bool> connector = connect;
-
-      connector.BeginInvoke (
-        ar => {
-          var connected = connector.EndInvoke (ar);
+      AsyncHelper.Queue (
+        () => {
+          var connected = connect ();
 
           if (!connected)
             return;
 
           open ();
-        },
-        null
+        }
       );
     }
 

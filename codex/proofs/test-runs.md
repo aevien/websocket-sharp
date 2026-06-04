@@ -52,3 +52,16 @@
     https://learn.microsoft.com/dotnet/api/system.security.cryptography.x509certificates.subjectalternativenamebuilder
   - Microsoft Learn: `SslStream.AuthenticateAsServer` notes client certificates are requested, and if no certificate is provided the server still accepts the connection request.
     https://learn.microsoft.com/dotnet/api/system.net.security.sslstream.authenticateasserver
+
+## 2026-06-04 - Async scheduling without delegate BeginInvoke
+
+- Branch: `codex/unity-compat-baseline`
+- Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
+- Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Result: Passed, 16 total, 0 failed
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - `ConnectAsync` opens a loopback WebSocket connection
+  - `SendAsync` invokes completion callback and round-trips text echo
+  - `CloseAsync` closes the async client connection
+  - Library no longer uses delegate `BeginInvoke` / `EndInvoke` scheduling

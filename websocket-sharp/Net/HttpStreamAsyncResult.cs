@@ -39,6 +39,7 @@
 
 using System;
 using System.Threading;
+using WebSocketSharp;
 
 namespace WebSocketSharp.Net
 {
@@ -165,35 +166,41 @@ namespace WebSocketSharp.Net
 
     internal void Complete ()
     {
+      var callback = default (AsyncCallback);
+
       lock (_sync) {
         if (_completed)
           return;
 
         _completed = true;
+        callback = _callback;
 
         if (_waitHandle != null)
           _waitHandle.Set ();
-
-        if (_callback != null)
-          _callback.BeginInvoke (this, ar => _callback.EndInvoke (ar), null);
       }
+
+      if (callback != null)
+        AsyncHelper.Queue (() => callback (this));
     }
 
     internal void Complete (Exception exception)
     {
+      var callback = default (AsyncCallback);
+
       lock (_sync) {
         if (_completed)
           return;
 
         _completed = true;
         _exception = exception;
+        callback = _callback;
 
         if (_waitHandle != null)
           _waitHandle.Set ();
-
-        if (_callback != null)
-          _callback.BeginInvoke (this, ar => _callback.EndInvoke (ar), null);
       }
+
+      if (callback != null)
+        AsyncHelper.Queue (() => callback (this));
     }
 
     #endregion

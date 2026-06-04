@@ -119,6 +119,55 @@ namespace WebSocketSharp.Tests
     }
 
     [Test]
+    public void AsyncClientApisOpenSendAndClose ()
+    {
+      using (var server = LoopbackServer.Start (s => s.AddWebSocketService<EchoBehavior> ("/echo")))
+      using (var client = new WebSocket (server.GetUrl ("/echo"))) {
+        var opened = new ManualResetEventSlim ();
+        var sent = new ManualResetEventSlim ();
+        var received = new ManualResetEventSlim ();
+        var closed = new ManualResetEventSlim ();
+        var actual = default (string);
+        var sendSucceeded = false;
+        var error = default (Exception);
+
+        client.OnOpen += (sender, e) => opened.Set ();
+        client.OnMessage += (sender, e) => {
+          actual = e.Data;
+          received.Set ();
+        };
+        client.OnError += (sender, e) => {
+          error = e.Exception ?? new Exception (e.Message);
+          received.Set ();
+        };
+        client.OnClose += (sender, e) => closed.Set ();
+
+        client.ConnectAsync ();
+
+        WaitFor (opened, "The async client did not open.");
+        AssertNoError (error);
+
+        client.SendAsync (
+          "async hello",
+          succeeded => {
+            sendSucceeded = succeeded;
+            sent.Set ();
+          }
+        );
+
+        WaitFor (sent, "The async send callback was not called.");
+        Assert.That (sendSucceeded, Is.True);
+        WaitFor (received, "The async text echo was not received.");
+        AssertNoError (error);
+        Assert.That (actual, Is.EqualTo ("async hello"));
+
+        client.CloseAsync ();
+
+        WaitFor (closed, "The async client did not close.");
+      }
+    }
+
+    [Test]
     public void OriginValidatorRejectsUnexpectedOrigin ()
     {
       using (var server = LoopbackServer.Start (
