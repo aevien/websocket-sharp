@@ -20,8 +20,6 @@ client/server handshake timeouts, replacement of delegate `BeginInvoke` usage,
 async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
 and stricter RFC 6455 frame validation.
 
-Verification notes are recorded in [codex/proofs/test-runs.md].
-
 websocket-sharp supports:
 
 - [RFC 6455](#supported-websocket-specifications)
@@ -35,8 +33,29 @@ websocket-sharp supports:
 
 ## Branches ##
 
-- `unity-compat-baseline` contains the current Unity compatibility preview work.
-- `master` tracks the original fork baseline.
+- `main` contains release-ready code.
+- `dev` is used for ongoing development.
+
+## Verification summary ##
+
+This preview was verified as a self-built Unity/.NET 4.x DLL.
+
+- Repository normal suite: `43/43` NUnit tests passed on `net472`.
+- Repository stress suite: `6/6` stress tests passed on `net472`.
+- Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
+- Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
+- Version metadata: file version and product version both report `1.0.3.0`.
+- Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
+- TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
+- Async lifecycle: repeated `ConnectAsync` / `SendAsync` / `CloseAsync` cycles complete successfully, including a 500-cycle stress run.
+- Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
+- Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
+- Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
+- Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
+- Resource lifecycle: repeated connect-storm and slow-handshake rounds return sessions to zero and do not show steady-state thread drift beyond the accepted bounds.
+- Close lifecycle: repeated `CloseAsync` / `Dispose` calls and abrupt raw TCP disconnects return server sessions to zero.
+- Protocol frames: payload boundaries `125`, `126`, and `66000` bytes round-trip; fragmented text can receive interleaved ping; malformed frames close protocol-error sessions.
+- Close-frame validation: one-byte payloads, invalid/reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding are covered.
 
 ## Build ##
 
