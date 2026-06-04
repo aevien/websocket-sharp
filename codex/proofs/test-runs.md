@@ -184,3 +184,33 @@
   - Raw silent TCP clients no longer wait for the old 90 second server handshake read timeout
   - A valid WebSocket client can connect, send, echo, and close while silent TCP handshakes are connected
   - Silent TCP handshakes are disconnected and no WebSocket sessions are stranded
+
+## 2026-06-04 - Resource lifecycle stress after blocking scheduler changes
+
+- Branch: `codex/unity-compat-baseline`
+- Targeted resource command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ResourceLifecycleStressTests`
+- Targeted resource result: Passed, 1 total, 0 failed
+- Targeted resource load:
+  - Warm-up: 50 simultaneous `ConnectAsync` clients and 20 silent TCP handshakes
+  - Measured: 5 rounds of 50 simultaneous `ConnectAsync` clients plus 20 silent TCP handshakes
+- Targeted resource output:
+  - Warm-up initial threads 27, steady-state threads 63, warm-up drift 36
+  - Measured round drift from steady-state: 0, 1, 1, 1, 1
+  - Final threads 63, final drift from initial 36, final steady-state drift 0, peak steady-state drift 1
+  - Elapsed 00:00:05.6554616
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 21 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 5 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.0535726
+  - 50 CCU x 100 text echo messages in 00:00:01.0853079
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0361939
+  - Resource lifecycle stress final steady-state drift 0 and peak steady-state drift 1 in 00:00:05.2919700
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2825955
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Repeated connect-storm rounds close every client and return server sessions to zero
+  - Repeated slow-handshake rounds close silent TCP clients and return server sessions to zero
+  - Thread-count assertions ignore one-time CLR/process warm-up and check steady-state drift after cooldown
+  - Full stress suite remains green with resource lifecycle coverage included
