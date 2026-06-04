@@ -93,3 +93,19 @@
   - WebSocket handshake response reads use the configured timeout
   - A silent TCP peer does not keep `Connect()` waiting for the old 90 second hardcoded timeout
   - Client remains non-open after the silent handshake timeout
+
+## 2026-06-04 - Long async lifecycle stress suite
+
+- Branch: `codex/unity-compat-baseline`
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 19 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 1 total, 0 failed
+- Stress cycles: 500 sequential `ConnectAsync` / `SendAsync` / `CloseAsync` cycles
+- Stress elapsed: 00:00:02.7884107
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Long async lifecycle repetition runs in a separate test project
+  - Each echoed stress payload matches its cycle payload
+  - Each async send callback completes successfully
+  - Server session count returns to zero after each cycle
