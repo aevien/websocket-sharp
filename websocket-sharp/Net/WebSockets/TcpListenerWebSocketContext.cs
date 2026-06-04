@@ -57,6 +57,7 @@ namespace WebSocketSharp.Net.WebSockets
     private NameValueCollection _queryString;
     private HttpRequest         _request;
     private Uri                 _requestUri;
+    private int                 _requestTimeout;
     private Stream              _stream;
     private TcpClient           _tcpClient;
     private IPrincipal          _user;
@@ -71,10 +72,12 @@ namespace WebSocketSharp.Net.WebSockets
       string protocol,
       bool secure,
       ServerSslConfiguration sslConfig,
+      int requestTimeout,
       Logger log
     )
     {
       _tcpClient = tcpClient;
+      _requestTimeout = requestTimeout;
       _log = log;
 
       var netStream = tcpClient.GetStream ();
@@ -100,7 +103,7 @@ namespace WebSocketSharp.Net.WebSockets
         _stream = netStream;
       }
 
-      _request = HttpRequest.ReadRequest (_stream, 90000);
+      _request = HttpRequest.ReadRequest (_stream, _requestTimeout);
       _websocket = new WebSocket (this, protocol);
     }
 
@@ -452,7 +455,7 @@ namespace WebSocketSharp.Net.WebSockets
     {
       HttpResponse.CreateUnauthorizedResponse (challenge).WriteTo (_stream);
 
-      _request = HttpRequest.ReadRequest (_stream, 15000);
+      _request = HttpRequest.ReadRequest (_stream, _requestTimeout);
     }
 
     internal bool SetUser (

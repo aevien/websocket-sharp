@@ -134,6 +134,8 @@ namespace WebSocketSharp.Net
 
           throw new HttpListenerException (87, msg);
         }
+
+        lsnr.FirstRequestTimeoutMilliseconds = listener.FirstRequestTimeoutMilliseconds;
       }
       else {
         lsnr = new EndPointListener (
@@ -141,7 +143,8 @@ namespace WebSocketSharp.Net
                  pref.IsSecure,
                  listener.CertificateFolderPath,
                  listener.SslConfiguration,
-                 listener.ReuseAddress
+                 listener.ReuseAddress,
+                 listener.FirstRequestTimeoutMilliseconds
                );
 
         _endpoints.Add (endpoint, lsnr);

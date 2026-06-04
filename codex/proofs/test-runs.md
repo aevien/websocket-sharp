@@ -158,3 +158,29 @@
 - Reference:
   - Microsoft Learn documents that `ThreadPool.SetMinThreads` is a process-wide workaround for blocked ThreadPool work and cautions that increasing it can degrade performance.
     https://learn.microsoft.com/dotnet/api/system.threading.threadpool.setminthreads
+
+## 2026-06-04 - Server slow-handshake timeout protection
+
+- Branch: `codex/unity-compat-baseline`
+- Targeted normal command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~HandshakeTimeoutTests`
+- Targeted normal result: Passed, 2 total, 0 failed
+- Targeted slow-handshake command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~SlowHandshakeStressTests`
+- Targeted slow-handshake result: Passed, 1 total, 0 failed
+- Targeted slow-handshake load: 20 silent TCP clients with 250 ms server handshake timeout
+- Targeted slow-handshake elapsed: 00:00:00.5119243
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 21 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 4 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:02.9671966
+  - 50 CCU x 100 text echo messages in 00:00:01.0331850
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0315440
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2734362
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - `WebSocketServer.HandshakeTimeout` can be configured before start and rejects zero or less
+  - `HttpServer.HandshakeTimeout` can be configured before start and rejects zero or less
+  - Raw silent TCP clients no longer wait for the old 90 second server handshake read timeout
+  - A valid WebSocket client can connect, send, echo, and close while silent TCP handshakes are connected
+  - Silent TCP handshakes are disconnected and no WebSocket sessions are stranded

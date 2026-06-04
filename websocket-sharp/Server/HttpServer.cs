@@ -663,6 +663,41 @@ namespace WebSocketSharp.Server
     }
 
     /// <summary>
+    /// Gets or sets the time to wait for a client HTTP or WebSocket handshake request.
+    /// </summary>
+    /// <remarks>
+    /// The set operation works if the current state of the server is
+    /// Ready or Stop.
+    /// </remarks>
+    /// <value>
+    /// A <see cref="TimeSpan"/> that represents the time to wait.
+    /// The default value is the same as 10 seconds.
+    /// </value>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value specified for a set operation is zero or less.
+    /// </exception>
+    public TimeSpan HandshakeTimeout {
+      get {
+        return TimeSpan.FromMilliseconds (_listener.FirstRequestTimeoutMilliseconds);
+      }
+
+      set {
+        if (value <= TimeSpan.Zero) {
+          var msg = "Zero or less.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_sync) {
+          if (!canSet ())
+            return;
+
+          _listener.FirstRequestTimeoutMilliseconds = toTimeoutMilliseconds (value);
+        }
+      }
+    }
+
+    /// <summary>
     /// Gets or sets the time to wait for the response to the WebSocket
     /// Ping or Close.
     /// </summary>
@@ -815,6 +850,16 @@ namespace WebSocketSharp.Server
       return true;
     }
 
+    private static int toTimeoutMilliseconds (TimeSpan timeout)
+    {
+      var milliseconds = timeout.TotalMilliseconds;
+
+      if (milliseconds > Int32.MaxValue)
+        return Int32.MaxValue;
+
+      return Math.Max (1, (int) milliseconds);
+    }
+
     private static HttpListener createListener (
       string hostname,
       int port,
@@ -845,6 +890,7 @@ namespace WebSocketSharp.Server
 
       _docRootPath = "./Public";
       _listener = createListener (hostname, port, secure);
+      _listener.FirstRequestTimeoutMilliseconds = toTimeoutMilliseconds (TimeSpan.FromSeconds (10));
       _log = _listener.Log;
       _services = new WebSocketServiceManager (_log);
       _sync = new object ();

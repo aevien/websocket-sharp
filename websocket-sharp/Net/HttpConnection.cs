@@ -134,8 +134,9 @@ namespace WebSocketSharp.Net
       _timeoutCanceled = new Dictionary<int, bool> ();
       _timer = new Timer (onTimeout, this, Timeout.Infinite, Timeout.Infinite);
 
-      // 90k ms for first request, 15k ms from then on.
-      init (new MemoryStream (), 90000);
+      // The first request timeout is endpoint-configurable.
+      // Reused requests keep the legacy 15 seconds.
+      init (new MemoryStream (), listener.FirstRequestTimeoutMilliseconds);
     }
 
     #endregion

@@ -66,6 +66,7 @@ namespace WebSocketSharp.Net
     private object                                     _connectionsSync;
     private static readonly string                     _defaultCertFolderPath;
     private IPEndPoint                                 _endpoint;
+    private int                                        _firstRequestTimeout;
     private List<HttpListenerPrefix>                   _prefixes;
     private bool                                       _secure;
     private Socket                                     _socket;
@@ -92,10 +93,12 @@ namespace WebSocketSharp.Net
       bool secure,
       string certificateFolderPath,
       ServerSslConfiguration sslConfig,
-      bool reuseAddress
+      bool reuseAddress,
+      int firstRequestTimeout
     )
     {
       _endpoint = endpoint;
+      _firstRequestTimeout = firstRequestTimeout;
 
       if (secure) {
         var cert = getCertificate (
@@ -157,6 +160,16 @@ namespace WebSocketSharp.Net
     public int Port {
       get {
         return _endpoint.Port;
+      }
+    }
+
+    internal int FirstRequestTimeoutMilliseconds {
+      get {
+        return _firstRequestTimeout;
+      }
+
+      set {
+        _firstRequestTimeout = value;
       }
     }
 

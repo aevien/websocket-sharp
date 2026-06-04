@@ -61,6 +61,7 @@ namespace WebSocketSharp.Server
     private System.Net.IPAddress               _address;
     private AuthenticationSchemes              _authSchemes;
     private static readonly string             _defaultRealm;
+    private TimeSpan                           _handshakeTimeout;
     private string                             _hostname;
     private bool                               _isDnsStyle;
     private bool                               _isSecure;
@@ -588,6 +589,41 @@ namespace WebSocketSharp.Server
     }
 
     /// <summary>
+    /// Gets or sets the time to wait for a client WebSocket handshake request.
+    /// </summary>
+    /// <remarks>
+    /// The set operation works if the current state of the server is
+    /// Ready or Stop.
+    /// </remarks>
+    /// <value>
+    /// A <see cref="TimeSpan"/> that represents the time to wait.
+    /// The default value is the same as 10 seconds.
+    /// </value>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value specified for a set operation is zero or less.
+    /// </exception>
+    public TimeSpan HandshakeTimeout {
+      get {
+        return _handshakeTimeout;
+      }
+
+      set {
+        if (value <= TimeSpan.Zero) {
+          var msg = "Zero or less.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_sync) {
+          if (!canSet ())
+            return;
+
+          _handshakeTimeout = value;
+        }
+      }
+    }
+
+    /// <summary>
     /// Gets or sets the time to wait for the response to the WebSocket
     /// Ping or Close.
     /// </summary>
@@ -721,6 +757,16 @@ namespace WebSocketSharp.Server
       return _sslConfig;
     }
 
+    private int getHandshakeTimeoutMilliseconds ()
+    {
+      var milliseconds = _handshakeTimeout.TotalMilliseconds;
+
+      if (milliseconds > Int32.MaxValue)
+        return Int32.MaxValue;
+
+      return Math.Max (1, (int) milliseconds);
+    }
+
     private void init (
       string hostname,
       System.Net.IPAddress address,
@@ -734,6 +780,7 @@ namespace WebSocketSharp.Server
       _isSecure = secure;
 
       _authSchemes = AuthenticationSchemes.Anonymous;
+      _handshakeTimeout = TimeSpan.FromSeconds (10);
       _isDnsStyle = Uri.CheckHostName (hostname) == UriHostNameType.Dns;
       _listener = new TcpListener (address, port);
       _log = new Logger ();
@@ -798,6 +845,7 @@ namespace WebSocketSharp.Server
                             null,
                             _isSecure,
                             _sslConfigInUse,
+                            getHandshakeTimeoutMilliseconds (),
                             _log
                           );
 

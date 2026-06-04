@@ -23,6 +23,7 @@ These rules apply to Codex work in this fork.
 - Keep active CCU stress separate from connection-storm stress. A CCU test may ramp clients up before asserting the concurrent session count; a connection-storm test must be named and logged as a distinct scenario.
 - Stress tests must use bounded waits, exact payload accounting, deterministic loopback cleanup, and configurable load via environment variables where practical.
 - Do not use global `ThreadPool.SetMinThreads` as a library fix for socket lifecycle starvation unless the user explicitly accepts that process-wide tradeoff.
+- Server-side handshake timeouts must stay configurable and must be covered by slow or silent client tests before changing defaults.
 
 ## Proofs
 

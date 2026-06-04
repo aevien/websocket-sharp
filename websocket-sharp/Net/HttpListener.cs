@@ -80,6 +80,7 @@ namespace WebSocketSharp.Net
     private object                                           _contextRegistrySync;
     private static readonly string                           _defaultRealm;
     private bool                                             _disposed;
+    private int                                              _firstRequestTimeout;
     private bool                                             _ignoreWriteExceptions;
     private volatile bool                                    _isListening;
     private Logger                                           _log;
@@ -113,6 +114,7 @@ namespace WebSocketSharp.Net
       _contextQueue = new Queue<HttpListenerContext> ();
       _contextRegistry = new LinkedList<HttpListenerContext> ();
       _contextRegistrySync = ((ICollection) _contextRegistry).SyncRoot;
+      _firstRequestTimeout = 90000;
       _log = new Logger ();
       _prefixes = new HttpListenerPrefixCollection (this);
       _sync = new object ();
@@ -126,6 +128,16 @@ namespace WebSocketSharp.Net
     internal string ObjectName {
       get {
         return GetType ().ToString ();
+      }
+    }
+
+    internal int FirstRequestTimeoutMilliseconds {
+      get {
+        return _firstRequestTimeout;
+      }
+
+      set {
+        _firstRequestTimeout = value;
       }
     }
 
