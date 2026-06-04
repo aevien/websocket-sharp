@@ -82,7 +82,7 @@ namespace WebSocketSharp.Tests
     }
 
     [Test]
-    public void ServerDefaultClientCertificateValidationRejectsPolicyErrors ()
+    public void ServerDefaultClientCertificateValidationRejectsCertificatePolicyErrors ()
     {
       var configuration = new ServerSslConfiguration ();
       var callback = configuration.ClientCertificateValidationCallback;
@@ -95,24 +95,20 @@ namespace WebSocketSharp.Tests
         callback (null, null, null, SslPolicyErrors.RemoteCertificateChainErrors),
         Is.False
       );
-      Assert.That (
-        callback (null, null, null, SslPolicyErrors.RemoteCertificateNotAvailable),
-        Is.False
-      );
     }
 
     [Test]
-    public void ServerDefaultClientCertificateValidationAcceptsNoPolicyErrors ()
+    public void ServerDefaultClientCertificateValidationAcceptsNoPolicyErrorsOrNoClientCertificate ()
     {
       var configuration = new ServerSslConfiguration ();
+      var callback = configuration.ClientCertificateValidationCallback;
 
       Assert.That (
-        configuration.ClientCertificateValidationCallback (
-          null,
-          null,
-          null,
-          SslPolicyErrors.None
-        ),
+        callback (null, null, null, SslPolicyErrors.None),
+        Is.True
+      );
+      Assert.That (
+        callback (null, null, null, SslPolicyErrors.RemoteCertificateNotAvailable),
         Is.True
       );
     }

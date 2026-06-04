@@ -23,7 +23,7 @@
   - Client default server certificate validation rejects certificate policy errors
   - Client custom server certificate validation callback remains user-controlled
   - Client SSL configuration copy preserves custom server certificate validation callback
-  - Server default client certificate validation accepts only `SslPolicyErrors.None`
+  - Server default client certificate validation accepts `SslPolicyErrors.None` and no supplied client certificate
   - Server default client certificate validation rejects certificate policy errors
   - Server custom client certificate validation callback remains user-controlled
   - Server SSL configuration copy preserves custom client certificate validation callback
@@ -32,3 +32,23 @@
     https://learn.microsoft.com/dotnet/api/system.net.security.remotecertificatevalidationcallback
   - Microsoft Learn: `SslStream.AuthenticateAsClient` on .NET Framework 4.7+ can use `SslProtocols.None` to let the OS choose protocols.
     https://learn.microsoft.com/dotnet/api/system.net.security.sslstream.authenticateasclient
+
+## 2026-06-04 - WSS loopback integration with self-signed certificate
+
+- Branch: `codex/unity-compat-baseline`
+- Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
+- Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Result: Passed, 15 total, 0 failed
+- Covered:
+  - Runtime-generated self-signed certificate with localhost/127.0.0.1 SAN can back a secure loopback `WebSocketServer`
+  - Default client server-certificate validation rejects the self-signed `wss://` endpoint
+  - Custom client server-certificate validation callback is invoked for the self-signed endpoint
+  - Custom validation can explicitly allow the expected self-signed certificate by thumbprint and complete secure text echo
+  - Server default client-certificate validation permits one-way TLS when no client certificate is supplied
+- References:
+  - Microsoft Learn: `CertificateRequest.CreateSelfSigned` creates a self-signed certificate with a private key.
+    https://learn.microsoft.com/dotnet/api/system.security.cryptography.x509certificates.certificaterequest.createselfsigned
+  - Microsoft Learn: `SubjectAlternativeNameBuilder` can add DNS and IP SAN entries to a test certificate.
+    https://learn.microsoft.com/dotnet/api/system.security.cryptography.x509certificates.subjectalternativenamebuilder
+  - Microsoft Learn: `SslStream.AuthenticateAsServer` notes client certificates are requested, and if no certificate is provided the server still accepts the connection request.
+    https://learn.microsoft.com/dotnet/api/system.net.security.sslstream.authenticateasserver
