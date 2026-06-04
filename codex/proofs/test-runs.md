@@ -78,3 +78,18 @@
   - Each async send callback completes successfully
   - Each echoed text payload matches the cycle payload
   - Server session count returns to zero after each client closes
+
+## 2026-06-04 - Client connection timeout for silent handshake
+
+- Branch: `codex/unity-compat-baseline`
+- Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
+- Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Identity check: `websocket-sharp, Version=1.0.2.32832, PublicKeyToken=5660b08a1845a91e`
+- Result: Passed, 19 total, 0 failed
+- Covered:
+  - `ConnectionTimeout` can be configured before connecting
+  - TCP connect uses the configured timeout
+  - WebSocket handshake response reads use the configured timeout
+  - A silent TCP peer does not keep `Connect()` waiting for the old 90 second hardcoded timeout
+  - Client remains non-open after the silent handshake timeout

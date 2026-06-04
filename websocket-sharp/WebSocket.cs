@@ -75,6 +75,7 @@ namespace WebSocketSharp
     private AuthenticationChallenge        _authChallenge;
     private string                         _base64Key;
     private bool                           _client;
+    private TimeSpan                       _connectionTimeout;
     private Action                         _closeContext;
     private CompressionMethod              _compression;
     private WebSocketContext               _context;
@@ -288,6 +289,7 @@ namespace WebSocketSharp
       _message = messagec;
       _retryCountForConnect = -1;
       _secure = _uri.Scheme == "wss";
+      _connectionTimeout = TimeSpan.FromSeconds (10);
       _waitTime = TimeSpan.FromSeconds (5);
 
       init ();
@@ -668,6 +670,69 @@ namespace WebSocketSharp
     public bool IsSecure {
       get {
         return _secure;
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the time to wait for a client connection handshake.
+    /// </summary>
+    /// <remarks>
+    /// This timeout applies to TCP connect, proxy connect, TLS handshake,
+    /// and WebSocket handshake response reads.
+    /// </remarks>
+    /// <value>
+    /// A <see cref="TimeSpan"/> that represents the time to wait.
+    /// The default value is the same as 10 seconds.
+    /// </value>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value specified for a set operation is zero or less.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///   <para>
+    ///   The set operation is not available if the interface is not for
+    ///   the client.
+    ///   </para>
+    ///   <para>
+    ///   -or-
+    ///   </para>
+    ///   <para>
+    ///   The set operation is not available when the current state of
+    ///   the interface is neither New nor Closed.
+    ///   </para>
+    /// </exception>
+    public TimeSpan ConnectionTimeout {
+      get {
+        if (!_client) {
+          var msg = "The interface is not for the client.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        return _connectionTimeout;
+      }
+
+      set {
+        if (!_client) {
+          var msg = "The interface is not for the client.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        if (value <= TimeSpan.Zero) {
+          var msg = "Zero or less.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _connectionTimeout = value;
+        }
       }
     }
 
@@ -1719,7 +1784,31 @@ namespace WebSocketSharp
     // As client
     private TcpClient createTcpClient (string hostname, int port)
     {
-      var ret = new TcpClient (hostname, port);
+      var ret = new TcpClient ();
+      var timeout = getConnectionTimeoutMilliseconds ();
+      var ar = ret.BeginConnect (hostname, port, null, null);
+      var waitHandle = ar.AsyncWaitHandle;
+
+      try {
+        if (!waitHandle.WaitOne (timeout)) {
+          ret.Close ();
+
+          var fmt = "A connection to {0}:{1} has timed out.";
+          var msg = String.Format (fmt, hostname, port);
+
+          throw new TimeoutException (msg);
+        }
+
+        ret.EndConnect (ar);
+      }
+      catch {
+        ret.Close ();
+
+        throw;
+      }
+      finally {
+        waitHandle.Close ();
+      }
 
       if (_noDelay)
         ret.NoDelay = true;
@@ -1836,6 +1925,17 @@ namespace WebSocketSharp
         _sslConfig = new ClientSslConfiguration (_uri.DnsSafeHost);
 
       return _sslConfig;
+    }
+
+    // As client
+    private int getConnectionTimeoutMilliseconds ()
+    {
+      var milliseconds = _connectionTimeout.TotalMilliseconds;
+
+      if (milliseconds > Int32.MaxValue)
+        return Int32.MaxValue;
+
+      return Math.Max (1, (int) milliseconds);
     }
 
     private void init ()
@@ -2432,7 +2532,7 @@ namespace WebSocketSharp
 
       _log.Debug (req.ToString ());
 
-      var timeout = 90000;
+      var timeout = getConnectionTimeoutMilliseconds ();
       var res = req.GetResponse (_stream, timeout);
 
       if (res.IsUnauthorized) {
@@ -2474,7 +2574,6 @@ namespace WebSocketSharp
 
         _log.Debug (req.ToString ());
 
-        timeout = 15000;
         res = req.GetResponse (_stream, timeout);
       }
 
@@ -2517,7 +2616,7 @@ namespace WebSocketSharp
     {
       var req = HttpRequest.CreateConnectRequest (_uri);
 
-      var timeout = 90000;
+      var timeout = getConnectionTimeoutMilliseconds ();
       var res = req.GetResponse (_stream, timeout);
 
       if (res.IsProxyAuthenticationRequired) {
@@ -2551,7 +2650,6 @@ namespace WebSocketSharp
           _stream = _tcpClient.GetStream ();
         }
 
-        timeout = 15000;
         res = req.GetResponse (_stream, timeout);
       }
 
