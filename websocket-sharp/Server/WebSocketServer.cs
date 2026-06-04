@@ -788,12 +788,13 @@ namespace WebSocketSharp.Server
 
         try {
           cl = _listener.AcceptTcpClient ();
+          var accepted = cl;
 
-          ThreadPool.QueueUserWorkItem (
-            state => {
+          AsyncHelper.QueueBlocking (
+            () => {
               try {
                 var ctx = new TcpListenerWebSocketContext (
-                            cl,
+                            accepted,
                             null,
                             _isSecure,
                             _sslConfigInUse,
@@ -806,10 +807,12 @@ namespace WebSocketSharp.Server
                 _log.Error (ex.Message);
                 _log.Debug (ex.ToString ());
 
-                cl.Close ();
+                accepted.Close ();
               }
             }
           );
+
+          cl = null;
         }
         catch (SocketException ex) {
           if (_state == ServerState.ShuttingDown)

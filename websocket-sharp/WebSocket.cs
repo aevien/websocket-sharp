@@ -2827,7 +2827,7 @@ namespace WebSocketSharp
     // As server
     internal void AcceptAsync ()
     {
-      AsyncHelper.Queue (
+      AsyncHelper.QueueBlocking (
         () => {
           var accepted = accept ();
 
@@ -3736,7 +3736,7 @@ namespace WebSocketSharp
         throw new InvalidOperationException (msg);
       }
 
-      AsyncHelper.Queue (
+      AsyncHelper.QueueBlocking (
         () => {
           var connected = connect ();
 

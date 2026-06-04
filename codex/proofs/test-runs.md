@@ -132,3 +132,29 @@
   - Exact received payload accounting with duplicate and missing payload detection
   - Server session count reaches 50 before message fan-out
   - Server session count returns to zero after clients close
+
+## 2026-06-04 - Connect storm without ThreadPool starvation
+
+- Branch: `codex/unity-compat-baseline`
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 19 total, 0 failed
+- Targeted connect-storm command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ConnectStormStressTests`
+- Targeted connect-storm result: Passed, 1 total, 0 failed
+- Targeted connect-storm load: 50 simultaneous `ConnectAsync` clients
+- Targeted connect-storm elapsed: 00:00:00.3111862
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 3 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.0638881
+  - 50 CCU x 100 text echo messages in 00:00:00.9464680
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0275477
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - `ConnectAsync` no longer occupies shared ThreadPool workers while waiting for blocking socket handshake
+  - Accepted WebSocketServer requests and HttpServer WebSocket upgrades no longer depend on shared ThreadPool workers for blocking upgrade processing
+  - Server session count reaches 50 after simultaneous async connect storm
+  - Server session count returns to zero after storm clients close
+  - Fix avoids process-wide `ThreadPool.SetMinThreads` changes
+- Reference:
+  - Microsoft Learn documents that `ThreadPool.SetMinThreads` is a process-wide workaround for blocked ThreadPool work and cautions that increasing it can degrade performance.
+    https://learn.microsoft.com/dotnet/api/system.threading.threadpool.setminthreads

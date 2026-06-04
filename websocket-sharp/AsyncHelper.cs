@@ -40,5 +40,16 @@ namespace WebSocketSharp
 
       ThreadPool.QueueUserWorkItem (state => ((Action) state) (), action);
     }
+
+    internal static void QueueBlocking (Action action)
+    {
+      if (action == null)
+        throw new ArgumentNullException ("action");
+
+      var thread = new Thread (() => action ());
+
+      thread.IsBackground = true;
+      thread.Start ();
+    }
   }
 }

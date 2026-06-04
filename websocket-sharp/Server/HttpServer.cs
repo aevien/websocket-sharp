@@ -919,26 +919,31 @@ namespace WebSocketSharp.Server
 
         try {
           ctx = _listener.GetContext ();
+          var accepted = ctx;
+          Action process = () => {
+            try {
+              if (accepted.Request.IsUpgradeRequest ("websocket")) {
+                processRequest (accepted.GetWebSocketContext (null));
 
-          ThreadPool.QueueUserWorkItem (
-            state => {
-              try {
-                if (ctx.Request.IsUpgradeRequest ("websocket")) {
-                  processRequest (ctx.GetWebSocketContext (null));
-
-                  return;
-                }
-
-                processRequest (ctx);
+                return;
               }
-              catch (Exception ex) {
-                _log.Error (ex.Message);
-                _log.Debug (ex.ToString ());
 
-                ctx.Connection.Close (true);
-              }
+              processRequest (accepted);
             }
-          );
+            catch (Exception ex) {
+              _log.Error (ex.Message);
+              _log.Debug (ex.ToString ());
+
+              accepted.Connection.Close (true);
+            }
+          };
+
+          if (accepted.Request.IsUpgradeRequest ("websocket"))
+            AsyncHelper.QueueBlocking (process);
+          else
+            AsyncHelper.Queue (process);
+
+          ctx = null;
         }
         catch (HttpListenerException ex) {
           if (_state == ServerState.ShuttingDown)
