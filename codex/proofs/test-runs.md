@@ -214,3 +214,31 @@
   - Repeated slow-handshake rounds close silent TCP clients and return server sessions to zero
   - Thread-count assertions ignore one-time CLR/process warm-up and check steady-state drift after cooldown
   - Full stress suite remains green with resource lifecycle coverage included
+
+## 2026-06-04 - Close lifecycle and abrupt disconnect cleanup
+
+- Branch: `codex/unity-compat-baseline`
+- Targeted normal command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~CloseLifecycleTests`
+- Targeted normal result: Passed, 2 total, 0 failed
+- Targeted close stress command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~CloseLifecycleStressTests`
+- Targeted close stress result: Passed, 1 total, 0 failed
+- Targeted close stress load: 50 concurrent repeated `CloseAsync`/`Dispose` clients plus 25 abrupt raw TCP disconnect clients
+- Targeted close stress elapsed: 00:00:00.9457893
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 23 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.5123071
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.5047862
+  - 50 CCU x 100 text echo messages in 00:00:01.1623874
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0513643
+  - Resource lifecycle stress final steady-state drift 1 and peak steady-state drift 3 in 00:00:05.6810066
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2833939
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Repeated `CloseAsync` calls followed by `Dispose` emit one client close event and leave the client closed
+  - Graceful repeated close/dispose returns server sessions to zero
+  - Raw WebSocket clients can complete handshake and then abruptly reset TCP without close frame
+  - Abrupt raw TCP disconnects return server sessions to zero
+  - Full stress suite remains green with close lifecycle coverage included
