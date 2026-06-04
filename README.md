@@ -2,6 +2,26 @@
 
 ## Welcome to websocket-sharp! ##
 
+This fork is maintained for Unity/.NET 4.x usage while keeping the original
+`websocket-sharp` assembly identity stable for existing Unity projects.
+
+Current preview:
+
+- Tag: `v1.0.3-unity-preview.1`
+- Target framework: `net472`
+- Assembly name: `websocket-sharp`
+- Assembly version: `1.0.2.32832` (kept for Unity binary compatibility)
+- File/product version: `1.0.3.0`
+- WebGL: not supported by this managed socket implementation. Unity WebGL should
+  continue to use the browser JavaScript WebSocket layer.
+
+Recent fork changes include safer TLS certificate validation defaults, bounded
+client/server handshake timeouts, replacement of delegate `BeginInvoke` usage,
+async lifecycle fixes, connect-storm protection, resource/close lifecycle stress
+coverage, and stricter RFC 6455 frame validation.
+
+Verification notes are recorded in [codex/proofs/test-runs.md].
+
 websocket-sharp supports:
 
 - [RFC 6455](#supported-websocket-specifications)
@@ -11,31 +31,59 @@ websocket-sharp supports:
 - [HTTP Authentication](#http-authentication)
 - [Query string, Origin header, Cookies, and User headers](#query-string-origin-header-cookies-and-user-headers)
 - [Connecting through the HTTP proxy server](#connecting-through-the-http-proxy-server)
-- .NET Framework **3.5** or later versions of .NET Framework (includes compatible environment such as [Mono])
+- .NET Framework **4.7.2** / Unity **.NET 4.x** compatible environments
 
 ## Branches ##
 
-- [master] for production releases.
-- [hybi-00] for older [draft-ietf-hybi-thewebsocketprotocol-00]. No longer maintained.
-- [draft75] for even more old [draft-hixie-thewebsocketprotocol-75]. No longer maintained.
+- `codex/unity-compat-baseline` contains the current Unity compatibility preview work.
+- [master] tracks the original fork baseline.
+- [hybi-00] is an upstream legacy branch for older [draft-ietf-hybi-thewebsocketprotocol-00]. No longer maintained.
+- [draft75] is an upstream legacy branch for even more old [draft-hixie-thewebsocketprotocol-75]. No longer maintained.
 
 ## Build ##
 
 websocket-sharp is built as a single assembly, **websocket-sharp.dll**.
 
-websocket-sharp is developed with [MonoDevelop]. So a simple way to build is to open **websocket-sharp.sln** and run build for **websocket-sharp project** with any of the build configurations (e.g. `Debug`) in MonoDevelop.
+This fork uses an SDK-style project targeting `net472`.
+
+```powershell
+dotnet build websocket-sharp\websocket-sharp.csproj -c Release
+```
+
+The release DLL is written to:
+
+```text
+websocket-sharp\bin\Release\net472\websocket-sharp.dll
+```
+
+Repository tests:
+
+```powershell
+dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release
+dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --filter TestCategory=Stress
+```
 
 ## Install ##
 
 ### Self Build ###
 
-You should add your websocket-sharp.dll (e.g. `/path/to/websocket-sharp/bin/Debug/websocket-sharp.dll`) to the library references of your project.
+You should add your websocket-sharp.dll (e.g. `/path/to/websocket-sharp/bin/Release/net472/websocket-sharp.dll`) to the library references of your project.
 
 If you would like to use that dll in your [Unity] project, you should add it to any folder of your project (e.g. `Assets/Plugins`) in the **Unity Editor**.
+
+Recommended Unity import settings for this managed DLL:
+
+- `Auto Reference`: enabled
+- `Validate References`: enabled
+- `Any Platform`: disabled when you need explicit platform control
+- Include `Editor`, `Standalone`, and any mobile/IL2CPP target you actually test
+- Exclude `WebGL`; use the browser JavaScript WebSocket layer there
+- Assembly target should show `.NET 4.x`
 
 ### NuGet Gallery ###
 
 websocket-sharp is available on the [NuGet Gallery], as still a **prerelease** version.
+The NuGet package is the upstream package, not this Unity preview fork build.
 
 - [NuGet Gallery: websocket-sharp]
 
@@ -468,7 +516,10 @@ ws.SslConfiguration.ServerCertificateValidationCallback =
   };
 ```
 
-The default callback always returns `true`.
+The default callback accepts only certificates that pass platform validation
+without `SslPolicyErrors`. For self-signed or private certificates, provide a
+custom `ServerCertificateValidationCallback` and validate the expected
+certificate explicitly.
 
 As a WebSocket server, you should create a new instance of the `WebSocketServer` or `HttpServer` class with some settings for the secure connection, such as the following.
 

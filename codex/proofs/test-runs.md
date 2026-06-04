@@ -319,3 +319,26 @@
 - Covered:
   - Preview version metadata records the verified Unity smoke baseline without changing strong-name assembly identity
   - File version and product version both report `1.0.3.0`
+
+## 2026-06-04 - README updated for Unity preview fork
+
+- Branch: `codex/unity-compat-baseline`
+- README update:
+  - Documents the `v1.0.3-unity-preview.1` fork status and Unity/.NET 4.x compatibility
+  - Replaces old MonoDevelop build guidance with SDK-style `dotnet build` and test commands
+  - Documents Unity plugin import settings and WebGL exclusion
+  - Updates secure connection text to match stricter default certificate validation
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 43 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.9762895
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.4741281
+  - 50 CCU x 100 text echo messages in 00:00:00.9672674
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0234753
+  - Resource lifecycle stress final steady-state drift -1 and peak steady-state drift 0 in 00:00:04.7215236
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2886009
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Public README no longer describes obsolete target framework, build tooling, WebGL support, or TLS defaults for this fork
