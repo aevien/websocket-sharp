@@ -2,7 +2,7 @@
 
 ## 2026-06-04 - net472 baseline and NUnit loopback suite
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Result: Passed, 5 total, 0 failed
 - Covered:
@@ -14,7 +14,7 @@
 
 ## 2026-06-04 - TLS certificate validation defaults
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
 - Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Result: Passed, 13 total, 0 failed
@@ -35,7 +35,7 @@
 
 ## 2026-06-04 - WSS loopback integration with self-signed certificate
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
 - Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Result: Passed, 15 total, 0 failed
@@ -55,7 +55,7 @@
 
 ## 2026-06-04 - Async scheduling without delegate BeginInvoke
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
 - Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Result: Passed, 16 total, 0 failed
@@ -68,7 +68,7 @@
 
 ## 2026-06-04 - Async stress smoke for repeated client lifecycle
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
 - Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
@@ -81,7 +81,7 @@
 
 ## 2026-06-04 - Client connection timeout for silent handshake
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
 - Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
@@ -96,7 +96,7 @@
 
 ## 2026-06-04 - Long async lifecycle stress suite
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Normal suite result: Passed, 19 total, 0 failed
 - Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
@@ -112,7 +112,7 @@
 
 ## 2026-06-04 - Concurrent echo stress at 50 CCU
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Normal suite result: Passed, 19 total, 0 failed
 - Targeted concurrent command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ConcurrentEchoStressTests`
@@ -135,7 +135,7 @@
 
 ## 2026-06-04 - Connect storm without ThreadPool starvation
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
 - Normal suite result: Passed, 19 total, 0 failed
 - Targeted connect-storm command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ConnectStormStressTests`
@@ -161,7 +161,7 @@
 
 ## 2026-06-04 - Server slow-handshake timeout protection
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Targeted normal command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~HandshakeTimeoutTests`
 - Targeted normal result: Passed, 2 total, 0 failed
 - Targeted slow-handshake command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~SlowHandshakeStressTests`
@@ -187,7 +187,7 @@
 
 ## 2026-06-04 - Resource lifecycle stress after blocking scheduler changes
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Targeted resource command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ResourceLifecycleStressTests`
 - Targeted resource result: Passed, 1 total, 0 failed
 - Targeted resource load:
@@ -217,7 +217,7 @@
 
 ## 2026-06-04 - Close lifecycle and abrupt disconnect cleanup
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Targeted normal command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~CloseLifecycleTests`
 - Targeted normal result: Passed, 2 total, 0 failed
 - Targeted close stress command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~CloseLifecycleStressTests`
@@ -245,7 +245,7 @@
 
 ## 2026-06-04 - Protocol frame validation for raw TCP clients
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Targeted protocol command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ProtocolFrameTests`
 - Targeted protocol result: Passed, 8 total, 0 failed
 - Targeted protocol elapsed: 00:00:00.628
@@ -272,7 +272,7 @@
 
 ## 2026-06-04 - Close-frame payload and length validation
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Targeted protocol command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ProtocolFrameTests`
 - Targeted protocol result: Passed, 20 total, 0 failed
 - Targeted protocol elapsed: 00:00:01
@@ -298,7 +298,7 @@
 
 ## 2026-06-04 - Unity preview versioning after project smoke test
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - Unity smoke: User reported the updated DLL works in the Unity project after Editor/Standalone plugin import settings were checked.
 - Versioning:
   - `AssemblyVersion` remains `1.0.2.32832` to keep Unity plugin assembly identity stable
@@ -322,10 +322,10 @@
 
 ## 2026-06-04 - README updated for Unity preview fork
 
-- Branch: `codex/unity-compat-baseline`
+- Branch: `unity-compat-baseline`
 - README update:
   - Documents the `v1.0.3-unity-preview.1` fork status and Unity/.NET 4.x compatibility
-  - Replaces old MonoDevelop build guidance with SDK-style `dotnet build` and test commands
+  - Replaces old build guidance with SDK-style `dotnet build` and test commands
   - Documents Unity plugin import settings and WebGL exclusion
   - Updates secure connection text to match stricter default certificate validation
 - Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
@@ -342,3 +342,30 @@
 - Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
 - Covered:
   - Public README no longer describes obsolete target framework, build tooling, WebGL support, or TLS defaults for this fork
+
+## 2026-06-05 - README resource cleanup and branch rename
+
+- Branch: `unity-compat-baseline`
+- README cleanup:
+  - Removed package-manager install guidance because this fork ships as a self-built Unity preview DLL
+  - Removed external link-reference resource list from the README footer
+  - Removed legacy branch links from the Branches section
+  - Renamed the public preview branch reference to `unity-compat-baseline`
+- Repository docs cleanup:
+  - Updated proof branch labels to `unity-compat-baseline`
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 43 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.6102089
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.4525540
+  - 50 CCU x 100 text echo messages in 00:00:01.0010493
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0225289
+  - Resource lifecycle stress final steady-state drift -1 and peak steady-state drift 0 in 00:00:04.6802673
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2847981
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Additional README check: removed package-feed guidance, old branch links, and external link-reference resources from `README.md`
+- Covered:
+  - README no longer advertises package-feed installs or external resource links for this Unity preview fork
+  - Documentation uses the unprefixed branch name

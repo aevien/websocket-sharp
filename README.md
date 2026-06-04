@@ -17,8 +17,8 @@ Current preview:
 
 Recent fork changes include safer TLS certificate validation defaults, bounded
 client/server handshake timeouts, replacement of delegate `BeginInvoke` usage,
-async lifecycle fixes, connect-storm protection, resource/close lifecycle stress
-coverage, and stricter RFC 6455 frame validation.
+async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
+and stricter RFC 6455 frame validation.
 
 Verification notes are recorded in [codex/proofs/test-runs.md].
 
@@ -35,10 +35,8 @@ websocket-sharp supports:
 
 ## Branches ##
 
-- `codex/unity-compat-baseline` contains the current Unity compatibility preview work.
-- [master] tracks the original fork baseline.
-- [hybi-00] is an upstream legacy branch for older [draft-ietf-hybi-thewebsocketprotocol-00]. No longer maintained.
-- [draft75] is an upstream legacy branch for even more old [draft-hixie-thewebsocketprotocol-75]. No longer maintained.
+- `unity-compat-baseline` contains the current Unity compatibility preview work.
+- `master` tracks the original fork baseline.
 
 ## Build ##
 
@@ -69,7 +67,7 @@ dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -
 
 You should add your websocket-sharp.dll (e.g. `/path/to/websocket-sharp/bin/Release/net472/websocket-sharp.dll`) to the library references of your project.
 
-If you would like to use that dll in your [Unity] project, you should add it to any folder of your project (e.g. `Assets/Plugins`) in the **Unity Editor**.
+If you would like to use that dll in your Unity project, you should add it to any folder of your project (e.g. `Assets/Plugins`) in the **Unity Editor**.
 
 Recommended Unity import settings for this managed DLL:
 
@@ -79,17 +77,6 @@ Recommended Unity import settings for this managed DLL:
 - Include `Editor`, `Standalone`, and any mobile/IL2CPP target you actually test
 - Exclude `WebGL`; use the browser JavaScript WebSocket layer there
 - Assembly target should show `.NET 4.x`
-
-### NuGet Gallery ###
-
-websocket-sharp is available on the [NuGet Gallery], as still a **prerelease** version.
-The NuGet package is the upstream package, not this Unity preview fork build.
-
-- [NuGet Gallery: websocket-sharp]
-
-You can add websocket-sharp to your project with the NuGet Package Manager, by using the following command in the Package Manager Console.
-
-    PM> Install-Package WebSocketSharp -Pre
 
 ## Usage ##
 
@@ -443,7 +430,7 @@ wssv.Stop ();
 
 ### HTTP Server with the WebSocket ###
 
-I have modified the `System.Net.HttpListener`, `System.Net.HttpListenerContext`, and some other classes from **[Mono]** to create an HTTP server that allows to accept the WebSocket handshake requests.
+I have modified the `System.Net.HttpListener`, `System.Net.HttpListenerContext`, and some other classes from Mono to create an HTTP server that allows to accept the WebSocket handshake requests.
 
 So websocket-sharp provides the `WebSocketSharp.Server.HttpServer` class.
 
@@ -457,13 +444,13 @@ httpsv.AddWebSocketService<Chat> ("/Chat");
 httpsv.AddWebSocketService<Chat> ("/ChatWithNyan", s => s.Suffix = " Nyan!");
 ```
 
-For more information, would you see **[Example3]**?
+For more information, see the local `Example3` folder.
 
 ### WebSocket Extensions ###
 
 #### Per-message Compression ####
 
-websocket-sharp supports the [Per-message Compression][rfc7692] extension (but does not support it with the [context take over]).
+websocket-sharp supports the per-message compression extension, but does not support context takeover.
 
 As a WebSocket client, if you would like to enable this extension, you should set the `WebSocket.Compression` property to a compression method before calling the connect method.
 
@@ -532,7 +519,7 @@ wssv.SslConfiguration.ServerCertificate = new X509Certificate2 (
 
 ### HTTP Authentication ###
 
-websocket-sharp supports the [HTTP Authentication (Basic/Digest)][rfc2617].
+websocket-sharp supports HTTP Authentication with Basic and Digest schemes.
 
 As a WebSocket client, you should set a pair of user name and password for the HTTP authentication, by using the `WebSocket.SetCredentials (string, string, bool)` method before calling the connect method.
 
@@ -569,7 +556,7 @@ wssv.AuthenticationSchemes = AuthenticationSchemes.Digest;
 
 #### Query string ####
 
-As a WebSocket client, if you would like to send the query string in the handshake request, you should create a new instance of the `WebSocket` class with a WebSocket URL that includes the [Query] string parameters.
+As a WebSocket client, if you would like to send the query string in the handshake request, you should create a new instance of the `WebSocket` class with a WebSocket URL that includes query string parameters.
 
 ```csharp
 var ws = new WebSocket ("ws://example.com/?name=nobita");
@@ -594,7 +581,7 @@ public class Chat : WebSocketBehavior
 
 #### Origin header ####
 
-As a WebSocket client, if you would like to send the Origin header in the handshake request, you should set the `WebSocket.Origin` property to an allowable value as the [Origin] header before calling the connect method.
+As a WebSocket client, if you would like to send the Origin header in the handshake request, you should set the `WebSocket.Origin` property to an allowable value before calling the connect method.
 
 ```csharp
 ws.Origin = "http://example.com";
@@ -688,11 +675,10 @@ var ws = new WebSocket ("ws://example.com");
 ws.SetProxy ("http://localhost:3128", "nobita", "password");
 ```
 
-I have tested this with **[Squid]**. It is necessary to disable the following option in **squid.conf** (e.g. `/etc/squid/squid.conf`).
+If your proxy restricts CONNECT destinations, make sure the WebSocket target port is allowed by the proxy configuration.
 
 ```
-# Deny CONNECT to other than SSL ports
-#http_access deny CONNECT !SSL_ports
+# Example proxy policy may need to allow CONNECT to the target WebSocket port.
 ```
 
 ### Logging ###
@@ -723,50 +709,25 @@ Examples using websocket-sharp.
 
 ### Example ###
 
-[Example] connects to the server executed by [Example2] or [Example3].
+`Example` connects to the server executed by `Example2` or `Example3`.
 
 ### Example2 ###
 
-[Example2] starts a WebSocket server.
+`Example2` starts a WebSocket server.
 
 ### Example3 ###
 
-[Example3] starts an HTTP server that allows to accept the WebSocket handshake requests.
+`Example3` starts an HTTP server that allows to accept the WebSocket handshake requests.
 
-Would you access to [http://localhost:4649](http://localhost:4649) to do **WebSocket Echo Test** with your web browser while Example3 is running?
+Open `http://localhost:4649` to do **WebSocket Echo Test** with your web browser while Example3 is running.
 
 ## Supported WebSocket Specifications ##
 
-websocket-sharp supports **RFC 6455**, and it is based on the following references:
+websocket-sharp supports **RFC 6455**.
 
-- [The WebSocket Protocol][rfc6455]
-- [The WebSocket API][api]
-- [Compression Extensions for WebSocket][rfc7692]
+- WebSocket protocol client and server behavior follows RFC 6455.
+- Per-message compression support is available without context takeover.
 
 ## License ##
 
-websocket-sharp is provided under [The MIT License].
-
-
-[Example]: https://github.com/sta/websocket-sharp/tree/master/Example
-[Example2]: https://github.com/sta/websocket-sharp/tree/master/Example2
-[Example3]: https://github.com/sta/websocket-sharp/tree/master/Example3
-[Mono]: http://www.mono-project.com
-[MonoDevelop]: http://monodevelop.com
-[NuGet Gallery]: http://www.nuget.org
-[NuGet Gallery: websocket-sharp]: http://www.nuget.org/packages/WebSocketSharp
-[Origin]: http://tools.ietf.org/html/rfc6454#section-7
-[Query]: http://tools.ietf.org/html/rfc3986#section-3.4
-[Squid]: http://www.squid-cache.org
-[The MIT License]: https://raw.github.com/sta/websocket-sharp/master/LICENSE.txt
-[Unity]: http://unity3d.com
-[api]: http://www.w3.org/TR/websockets
-[context take over]: https://datatracker.ietf.org/doc/html/rfc7692#section-7.1.1
-[draft-hixie-thewebsocketprotocol-75]: http://tools.ietf.org/html/draft-hixie-thewebsocketprotocol-75
-[draft-ietf-hybi-thewebsocketprotocol-00]: http://tools.ietf.org/html/draft-ietf-hybi-thewebsocketprotocol-00
-[draft75]: https://github.com/sta/websocket-sharp/tree/draft75
-[hybi-00]: https://github.com/sta/websocket-sharp/tree/hybi-00
-[master]: https://github.com/sta/websocket-sharp/tree/master
-[rfc2617]: http://tools.ietf.org/html/rfc2617
-[rfc6455]: http://tools.ietf.org/html/rfc6455
-[rfc7692]: https://datatracker.ietf.org/doc/html/rfc7692
+websocket-sharp is provided under the MIT License. See `LICENSE.txt`.
