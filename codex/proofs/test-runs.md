@@ -295,3 +295,27 @@
   - Oversized close and ping control payloads close the protocol-error session without delivering a message
   - Close frames with non-minimal extended length encoding close the protocol-error session without delivering a message
   - Full stress suite remains green with close-frame validation included
+
+## 2026-06-04 - Unity preview versioning after project smoke test
+
+- Branch: `codex/unity-compat-baseline`
+- Unity smoke: User reported the updated DLL works in the Unity project after Editor/Standalone plugin import settings were checked.
+- Versioning:
+  - `AssemblyVersion` remains `1.0.2.32832` to keep Unity plugin assembly identity stable
+  - `AssemblyFileVersion` set to `1.0.3.0`
+  - `AssemblyInformationalVersion` set to `1.0.3.0` so file version and product version match
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 43 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:04.2132420
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.4679380
+  - 50 CCU x 100 text echo messages in 00:00:01.0101925
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0231285
+  - Resource lifecycle stress final steady-state drift -1 and peak steady-state drift 0 in 00:00:04.6917906
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2714969
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Preview version metadata records the verified Unity smoke baseline without changing strong-name assembly identity
+  - File version and product version both report `1.0.3.0`
