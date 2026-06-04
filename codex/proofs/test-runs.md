@@ -65,3 +65,16 @@
   - `SendAsync` invokes completion callback and round-trips text echo
   - `CloseAsync` closes the async client connection
   - Library no longer uses delegate `BeginInvoke` / `EndInvoke` scheduling
+
+## 2026-06-04 - Async stress smoke for repeated client lifecycle
+
+- Branch: `codex/unity-compat-baseline`
+- Command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
+- Control command before push: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Result: Passed, 17 total, 0 failed
+- Covered:
+  - 25 sequential `ConnectAsync` / `SendAsync` / `CloseAsync` cycles on one loopback server
+  - Each async send callback completes successfully
+  - Each echoed text payload matches the cycle payload
+  - Server session count returns to zero after each client closes

@@ -19,6 +19,12 @@ namespace WebSocketSharp.Tests
 
     public int Port { get; private set; }
 
+    public WebSocketServiceManager WebSocketServices {
+      get {
+        return _server.WebSocketServices;
+      }
+    }
+
     public static LoopbackServer Start (Action<WebSocketServer> configure)
     {
       return Start (false, null, configure);
