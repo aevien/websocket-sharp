@@ -156,7 +156,8 @@ namespace WebSocketSharp.Net
     ///   the certificate.
     ///   </para>
     ///   <para>
-    ///   The default value invokes a method that only returns <c>true</c>.
+    ///   The default value invokes a method that returns <c>true</c> only
+    ///   when no SSL policy errors are present.
     ///   </para>
     /// </value>
     public RemoteCertificateValidationCallback ClientCertificateValidationCallback {
@@ -231,7 +232,7 @@ namespace WebSocketSharp.Net
       SslPolicyErrors sslPolicyErrors
     )
     {
-      return true;
+      return sslPolicyErrors == SslPolicyErrors.None;
     }
 
     #endregion
