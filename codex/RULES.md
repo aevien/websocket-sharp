@@ -16,8 +16,12 @@ These rules apply to Codex work in this fork.
 
 - Run the repository test suite after each completed code change:
   - `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release`
+- Keep heavier stress coverage in `tests\WebSocketSharp.StressTests` and run it explicitly:
+  - `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --filter TestCategory=Stress`
 - Add or update NUnit tests before or together with behavior changes.
 - Keep loopback tests local-only and independent of external network services.
+- Keep active CCU stress separate from connection-storm stress. A CCU test may ramp clients up before asserting the concurrent session count; a connection-storm test must be named and logged as a distinct scenario.
+- Stress tests must use bounded waits, exact payload accounting, deterministic loopback cleanup, and configurable load via environment variables where practical.
 
 ## Proofs
 

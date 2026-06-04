@@ -109,3 +109,26 @@
   - Each echoed stress payload matches its cycle payload
   - Each async send callback completes successfully
   - Server session count returns to zero after each cycle
+
+## 2026-06-04 - Concurrent echo stress at 50 CCU
+
+- Branch: `codex/unity-compat-baseline`
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 19 total, 0 failed
+- Targeted concurrent command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter FullyQualifiedName~ConcurrentEchoStressTests`
+- Targeted concurrent result: Passed, 1 total, 0 failed
+- Targeted concurrent load: 50 CCU x 100 text echo messages
+- Targeted concurrent elapsed: 00:00:01.3612819
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 2 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.4042238
+  - 50 CCU x 100 text echo messages in 00:00:01.0022753
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Development observation: an exploratory version that started all 50 clients with `ConnectAsync` at once timed out before reaching 50 open clients; this is a separate connection-storm scenario, not the active-CCU echo stress proof.
+- Covered:
+  - 50 simultaneously open loopback WebSocket clients
+  - 5000 async text echo sends and callbacks
+  - Exact received payload accounting with duplicate and missing payload detection
+  - Server session count reaches 50 before message fan-out
+  - Server session count returns to zero after clients close
