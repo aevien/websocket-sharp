@@ -2118,9 +2118,22 @@ namespace WebSocketSharp
     private bool processCloseFrame (WebSocketFrame frame)
     {
       var data = frame.PayloadData;
-      var send = !data.HasReservedCode;
 
-      close (data, send, true);
+      ushort code;
+      string message;
+
+      if (!checkClosePayload (data, out code, out message)) {
+        var closeCode = code == (ushort) CloseStatusCode.InvalidData
+                        ? CloseStatusCode.InvalidData
+                        : CloseStatusCode.ProtocolError;
+
+        _log.Error (message);
+        close (new PayloadData ((ushort) closeCode, message), true, true);
+
+        return false;
+      }
+
+      close (data, true, true);
 
       return false;
     }
@@ -2201,6 +2214,47 @@ namespace WebSocketSharp
       catch (ArgumentException) {
         return false;
       }
+    }
+
+    private static bool checkClosePayload (
+      PayloadData payloadData,
+      out ushort code,
+      out string message
+    )
+    {
+      var data = payloadData.ToArray ();
+      var len = data.LongLength;
+
+      code = (ushort) CloseStatusCode.ProtocolError;
+      message = null;
+
+      if (len == 0)
+        return true;
+
+      if (len == 1) {
+        message = "A close frame has a one-byte payload.";
+
+        return false;
+      }
+
+      code = data.SubArray (0, 2).ToUInt16 (ByteOrder.Big);
+
+      if (!code.IsCloseStatusCode () || code.IsReservedStatusCode ()) {
+        message = "A close frame has an invalid status code.";
+
+        return false;
+      }
+
+      if (len <= 2)
+        return true;
+
+      if (isValidTextPayload (data.SubArray (2, len - 2)))
+        return true;
+
+      code = (ushort) CloseStatusCode.InvalidData;
+      message = "A close frame reason contains invalid UTF-8.";
+
+      return false;
     }
 
     private bool processPingFrame (WebSocketFrame frame)

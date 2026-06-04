@@ -269,3 +269,29 @@
   - Unexpected continuation frames close the protocol-error session instead of being silently ignored
   - Invalid UTF-8 text frames close the protocol-error session instead of reaching `OnMessage`
   - Full stress suite remains green with protocol frame validation included
+
+## 2026-06-04 - Close-frame payload and length validation
+
+- Branch: `codex/unity-compat-baseline`
+- Targeted protocol command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ProtocolFrameTests`
+- Targeted protocol result: Passed, 20 total, 0 failed
+- Targeted protocol elapsed: 00:00:01
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 43 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:02.8260679
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.5020388
+  - 50 CCU x 100 text echo messages in 00:00:01.1400145
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0315033
+  - Resource lifecycle stress final steady-state drift -1 and peak steady-state drift 0 in 00:00:04.8605124
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2827046
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - One-byte close payloads return close code `1002`
+  - Invalid or reserved close codes `999`, `1004`, `1005`, `1006`, `1015`, and `5000` return close code `1002`
+  - Close reasons with invalid UTF-8 return close code `1007`
+  - Oversized close and ping control payloads close the protocol-error session without delivering a message
+  - Close frames with non-minimal extended length encoding close the protocol-error session without delivering a message
+  - Full stress suite remains green with close-frame validation included

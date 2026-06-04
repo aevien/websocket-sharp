@@ -27,6 +27,7 @@ These rules apply to Codex work in this fork.
 - Resource lifecycle stress should separate CLR/process warm-up from steady-state assertions; assert session cleanup strictly and thread-count drift only after cooldown.
 - Close lifecycle changes must cover graceful repeated close/dispose and abrupt TCP disconnect, with server sessions returning to zero.
 - Protocol frame changes must include raw TCP tests for valid frame boundaries/fragmentation and malformed frames, with protocol-error sessions returning to zero.
+- Close-frame validation changes must cover one-byte payloads, invalid or reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding.
 
 ## Proofs
 

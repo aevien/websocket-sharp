@@ -379,6 +379,8 @@ namespace WebSocketSharp
       if (len == 0) {
         frame._extPayloadLength = _emptyBytes;
 
+        validatePayloadLength (frame);
+
         return frame;
       }
 
@@ -391,6 +393,8 @@ namespace WebSocketSharp
       }
 
       frame._extPayloadLength = bytes;
+
+      validatePayloadLength (frame);
 
       return frame;
     }
@@ -406,6 +410,8 @@ namespace WebSocketSharp
 
       if (len == 0) {
         frame._extPayloadLength = _emptyBytes;
+
+        validatePayloadLength (frame);
 
         completed (frame);
 
@@ -423,10 +429,35 @@ namespace WebSocketSharp
 
           frame._extPayloadLength = bytes;
 
+          validatePayloadLength (frame);
+
           completed (frame);
         },
         error
       );
+    }
+
+    private static void validatePayloadLength (WebSocketFrame frame)
+    {
+      var len = frame.ExactPayloadLength;
+
+      if (frame._payloadLength == 126 && len < 126) {
+        var msg = "A frame uses a non-minimal extended payload length.";
+
+        throw new WebSocketException (CloseStatusCode.ProtocolError, msg);
+      }
+
+      if (frame._payloadLength == 127 && len <= UInt16.MaxValue) {
+        var msg = "A frame uses a non-minimal extended payload length.";
+
+        throw new WebSocketException (CloseStatusCode.ProtocolError, msg);
+      }
+
+      if (frame.IsControl && len > 125) {
+        var msg = "The payload length of a control frame is greater than 125.";
+
+        throw new WebSocketException (CloseStatusCode.ProtocolError, msg);
+      }
     }
 
     private static WebSocketFrame readHeader (Stream stream)

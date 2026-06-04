@@ -128,6 +128,102 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    [Test]
+    public void CloseFrameWithOneBytePayloadReturnsProtocolErrorClose ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodeClose, new byte[] { 0x03 }, true, true);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+      }
+    }
+
+    [TestCase (999)]
+    [TestCase (1004)]
+    [TestCase (1005)]
+    [TestCase (1006)]
+    [TestCase (1015)]
+    [TestCase (5000)]
+    public void CloseFrameWithInvalidOrReservedCodeReturnsProtocolErrorClose (int code)
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodeClose, CreateClosePayload ((ushort) code), true, true);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+      }
+    }
+
+    [Test]
+    public void CloseFrameWithInvalidUtf8ReasonReturnsInvalidDataClose ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (
+          client.GetStream (),
+          OpcodeClose,
+          new byte[] { 0x03, 0xe8, 0xc3, 0x28 },
+          true,
+          true
+        );
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.InvalidData));
+        WaitForProtocolClose (server, "/count", client);
+      }
+    }
+
+    [Test]
+    public void CloseFrameWithOversizedPayloadClosesConnectionWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        var payload = new byte[126];
+
+        payload[0] = 0x03;
+        payload[1] = 0xe8;
+
+        WriteClientFrame (client.GetStream (), OpcodeClose, payload, true, true);
+
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void PingFrameWithOversizedPayloadClosesConnectionWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodePing, new byte[126], true, true);
+
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [TestCase (126)]
+    [TestCase (127)]
+    public void CloseFrameWithNonMinimalExtendedLengthClosesConnectionWithoutDeliveringMessage (int payloadLengthCode)
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrameWithPayloadLengthCode (
+          client.GetStream (),
+          OpcodeClose,
+          CreateClosePayload ((ushort) CloseStatusCode.Normal),
+          true,
+          true,
+          payloadLengthCode
+        );
+
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
     private static void CloseRawWebSocket (TcpClient client)
     {
       if (client == null || !client.Connected)
@@ -166,6 +262,11 @@ namespace WebSocketSharp.Tests
         Assert.Fail ("The raw WebSocket handshake did not receive a 101 response: " + response);
 
       return client;
+    }
+
+    private static byte[] CreateClosePayload (ushort code)
+    {
+      return new[] { (byte) ((code >> 8) & 0xff), (byte) (code & 0xff) };
     }
 
     private static string CreateWebSocketKey ()
@@ -212,6 +313,16 @@ namespace WebSocketSharp.Tests
         Mask (payload, maskingKey);
 
       return new FrameData (fin, opcode, payload);
+    }
+
+    private static ushort ReadServerCloseCode (NetworkStream stream)
+    {
+      var frame = ReadServerFrame (stream);
+
+      Assert.That (frame.Opcode, Is.EqualTo (OpcodeClose), "The server did not send a close frame.");
+      Assert.That (frame.Payload.Length, Is.GreaterThanOrEqualTo (2), "The close frame did not include a close code.");
+
+      return (ushort) ((frame.Payload[0] << 8) | frame.Payload[1]);
     }
 
     private static FrameData ReadServerMessage (NetworkStream stream)
@@ -370,6 +481,50 @@ namespace WebSocketSharp.Tests
       else {
         frame.WriteByte ((byte) ((mask ? 0x80 : 0x00) | 127));
         frame.WriteUInt64BigEndian ((ulong) payload.Length);
+      }
+
+      var data = (byte[]) payload.Clone ();
+
+      if (mask) {
+        var maskingKey = new byte[] { 0x11, 0x22, 0x33, 0x44 };
+
+        frame.Write (maskingKey, 0, maskingKey.Length);
+        Mask (data, maskingKey);
+      }
+
+      frame.Write (data, 0, data.Length);
+
+      var bytes = frame.ToArray ();
+
+      stream.Write (bytes, 0, bytes.Length);
+    }
+
+    private static void WriteClientFrameWithPayloadLengthCode (
+      NetworkStream stream,
+      int opcode,
+      byte[] payload,
+      bool fin,
+      bool mask,
+      int payloadLengthCode
+    )
+    {
+      var frame = new MemoryStream ();
+      var firstByte = (byte) opcode;
+
+      if (fin)
+        firstByte |= 0x80;
+
+      frame.WriteByte (firstByte);
+      frame.WriteByte ((byte) ((mask ? 0x80 : 0x00) | payloadLengthCode));
+
+      if (payloadLengthCode == 126) {
+        frame.WriteUInt16BigEndian ((ushort) payload.Length);
+      }
+      else if (payloadLengthCode == 127) {
+        frame.WriteUInt64BigEndian ((ulong) payload.Length);
+      }
+      else {
+        Assert.Fail ("The forced payload length code must be 126 or 127.");
       }
 
       var data = (byte[]) payload.Clone ();
