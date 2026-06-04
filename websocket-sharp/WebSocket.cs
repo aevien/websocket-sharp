@@ -1426,6 +1426,13 @@ namespace WebSocketSharp
           return false;
         }
       }
+      else if (frame.IsContinuation) {
+        if (!_inContinuation) {
+          message = "A continuation frame was received while not receiving continuation frames.";
+
+          return false;
+        }
+      }
 
       if (frame.IsControl) {
         if (frame.Fin == Fin.More) {
@@ -2120,12 +2127,20 @@ namespace WebSocketSharp
 
     private bool processDataFrame (WebSocketFrame frame)
     {
-      var e = frame.IsCompressed
-              ? new MessageEventArgs (
-                  frame.Opcode,
-                  frame.PayloadData.ApplicationData.Decompress (_compression)
-                )
-              : new MessageEventArgs (frame);
+      var data = frame.IsCompressed
+                 ? frame.PayloadData.ApplicationData.Decompress (_compression)
+                 : frame.PayloadData.ApplicationData;
+
+      if (frame.IsText && !isValidTextPayload (data)) {
+        var msg = "A text frame contains invalid UTF-8.";
+
+        _log.Error (msg);
+        abort ((ushort) CloseStatusCode.InvalidData, msg);
+
+        return false;
+      }
+
+      var e = new MessageEventArgs (frame.Opcode, data);
 
       enqueueToMessageEventQueue (e);
 
@@ -2147,21 +2162,45 @@ namespace WebSocketSharp
       _fragmentsBuffer.WriteBytes (frame.PayloadData.ApplicationData, 1024);
 
       if (frame.IsFinal) {
+        var opcode = _fragmentsOpcode;
+        byte[] data;
+
         using (_fragmentsBuffer) {
-          var data = _fragmentsCompressed
-                     ? _fragmentsBuffer.DecompressToArray (_compression)
-                     : _fragmentsBuffer.ToArray ();
-
-          var e = new MessageEventArgs (_fragmentsOpcode, data);
-
-          enqueueToMessageEventQueue (e);
+          data = _fragmentsCompressed
+                 ? _fragmentsBuffer.DecompressToArray (_compression)
+                 : _fragmentsBuffer.ToArray ();
         }
 
         _fragmentsBuffer = null;
         _inContinuation = false;
+
+        if (opcode == Opcode.Text && !isValidTextPayload (data)) {
+          var msg = "A fragmented text message contains invalid UTF-8.";
+
+          _log.Error (msg);
+          abort ((ushort) CloseStatusCode.InvalidData, msg);
+
+          return false;
+        }
+
+        var e = new MessageEventArgs (opcode, data);
+
+        enqueueToMessageEventQueue (e);
       }
 
       return true;
+    }
+
+    private static bool isValidTextPayload (byte[] data)
+    {
+      try {
+        new UTF8Encoding (false, true).GetString (data);
+
+        return true;
+      }
+      catch (ArgumentException) {
+        return false;
+      }
     }
 
     private bool processPingFrame (WebSocketFrame frame)

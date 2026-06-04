@@ -26,6 +26,7 @@ These rules apply to Codex work in this fork.
 - Server-side handshake timeouts must stay configurable and must be covered by slow or silent client tests before changing defaults.
 - Resource lifecycle stress should separate CLR/process warm-up from steady-state assertions; assert session cleanup strictly and thread-count drift only after cooldown.
 - Close lifecycle changes must cover graceful repeated close/dispose and abrupt TCP disconnect, with server sessions returning to zero.
+- Protocol frame changes must include raw TCP tests for valid frame boundaries/fragmentation and malformed frames, with protocol-error sessions returning to zero.
 
 ## Proofs
 

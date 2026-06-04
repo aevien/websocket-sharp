@@ -242,3 +242,30 @@
   - Raw WebSocket clients can complete handshake and then abruptly reset TCP without close frame
   - Abrupt raw TCP disconnects return server sessions to zero
   - Full stress suite remains green with close lifecycle coverage included
+
+## 2026-06-04 - Protocol frame validation for raw TCP clients
+
+- Branch: `codex/unity-compat-baseline`
+- Targeted protocol command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ProtocolFrameTests`
+- Targeted protocol result: Passed, 8 total, 0 failed
+- Targeted protocol elapsed: 00:00:00.628
+- Normal suite command: `dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-restore`
+- Normal suite result: Passed, 31 total, 0 failed
+- Stress suite command: `dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-restore --filter TestCategory=Stress`
+- Stress suite result: Passed, 6 total, 0 failed
+- Stress suite output:
+  - 500 async lifecycle cycles in 00:00:03.3438648
+  - 50 concurrent repeated close/dispose clients plus 25 abrupt raw disconnect clients in 00:00:00.4730146
+  - 50 CCU x 100 text echo messages in 00:00:00.9879212
+  - 50 simultaneous `ConnectAsync` clients in 00:00:00.0280684
+  - Resource lifecycle stress final steady-state drift -1 and peak steady-state drift 0 in 00:00:04.7432403
+  - 20 silent TCP clients with 250 ms server timeout in 00:00:00.2701398
+- Additional check: `rg -n "BeginInvoke|EndInvoke" websocket-sharp tests` returned no matches
+- Covered:
+  - Raw masked text payload boundaries 125, 126, and 66000 bytes round-trip through the server
+  - Fragmented text messages can receive interleaved ping and then complete correctly
+  - Unmasked client frames close the protocol-error session without delivering a message
+  - Fragmented control frames close the protocol-error session without delivering a message
+  - Unexpected continuation frames close the protocol-error session instead of being silently ignored
+  - Invalid UTF-8 text frames close the protocol-error session instead of reaching `OnMessage`
+  - Full stress suite remains green with protocol frame validation included
