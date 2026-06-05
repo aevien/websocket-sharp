@@ -30,11 +30,11 @@ namespace WebSocketSharp.Tests
       var product = GetCustomAttribute<AssemblyProductAttribute> (assembly);
       var fileInfo = FileVersionInfo.GetVersionInfo (assembly.Location);
 
-      Assert.That (fileVersion.Version, Is.EqualTo ("1.2.0.0"));
-      Assert.That (informationalVersion.InformationalVersion, Is.EqualTo ("1.2.0.0"));
+      Assert.That (fileVersion.Version, Is.EqualTo ("1.2.1.0"));
+      Assert.That (informationalVersion.InformationalVersion, Is.EqualTo ("1.2.1.0"));
       Assert.That (product.Product, Is.EqualTo ("websocket-sharp.dll"));
-      Assert.That (fileInfo.FileVersion, Is.EqualTo ("1.2.0.0"));
-      Assert.That (fileInfo.ProductVersion, Is.EqualTo ("1.2.0.0"));
+      Assert.That (fileInfo.FileVersion, Is.EqualTo ("1.2.1.0"));
+      Assert.That (fileInfo.ProductVersion, Is.EqualTo ("1.2.1.0"));
       Assert.That (fileInfo.ProductName, Is.EqualTo ("websocket-sharp.dll"));
     }
 
