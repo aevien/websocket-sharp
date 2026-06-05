@@ -353,7 +353,7 @@ namespace WebSocketSharp
       if (!opcode.IsSupportedOpcode ()) {
         var msg = "The opcode of a frame is not supported.";
 
-        throw new WebSocketException (CloseStatusCode.UnsupportedData, msg);
+        throw new WebSocketException (CloseStatusCode.ProtocolError, msg);
       }
 
       var frame = new WebSocketFrame ();

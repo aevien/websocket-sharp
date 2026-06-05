@@ -20,6 +20,7 @@ namespace WebSocketSharp.Tests
     private const int OpcodeClose = 0x8;
     private const int OpcodePing = 0x9;
     private const int OpcodePong = 0xa;
+    private const int Rsv1 = 0x40;
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds (5);
 
@@ -189,6 +190,48 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    [TestCase (0x3)]
+    [TestCase (0x4)]
+    [TestCase (0x5)]
+    [TestCase (0x6)]
+    [TestCase (0x7)]
+    [TestCase (0xb)]
+    [TestCase (0xc)]
+    [TestCase (0xd)]
+    [TestCase (0xe)]
+    [TestCase (0xf)]
+    public void ReservedOpcodeReturnsProtocolErrorCloseWithoutDeliveringMessage (int opcode)
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), opcode, Encoding.UTF8.GetBytes ("reserved"), true, true);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void Rsv1WithoutCompressionReturnsProtocolErrorCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrameWithFirstByteFlags (
+          client.GetStream (),
+          OpcodeText,
+          Encoding.UTF8.GetBytes ("unexpected-rsv1"),
+          true,
+          true,
+          Rsv1
+        );
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
     [Test]
     public void FragmentedControlFrameClosesConnectionWithoutDeliveringMessage ()
     {
@@ -198,6 +241,38 @@ namespace WebSocketSharp.Tests
 
         WaitForProtocolClose (server, "/count", client);
 
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void NewDataFrameDuringFragmentedMessageReturnsProtocolErrorCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        var stream = client.GetStream ();
+
+        WriteClientFrame (stream, OpcodeText, Encoding.UTF8.GetBytes ("first"), false, true);
+        WriteClientFrame (stream, OpcodeText, Encoding.UTF8.GetBytes ("second"), true, true);
+
+        Assert.That (ReadServerCloseCode (stream), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void CloseDuringFragmentedMessageReturnsCloseAndRemovesSession ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        var stream = client.GetStream ();
+
+        WriteClientFrame (stream, OpcodeText, Encoding.UTF8.GetBytes ("partial"), false, true);
+        WriteClientFrame (stream, OpcodeClose, CreateClosePayload ((ushort) CloseStatusCode.Normal), true, true);
+
+        Assert.That (ReadServerCloseCode (stream), Is.EqualTo ((ushort) CloseStatusCode.Normal));
+        WaitForProtocolClose (server, "/count", client);
         Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
       }
     }
@@ -752,14 +827,32 @@ namespace WebSocketSharp.Tests
       bool rsv1
     )
     {
+      WriteClientFrameWithFirstByteFlags (
+        stream,
+        opcode,
+        payload,
+        fin,
+        mask,
+        rsv1 ? Rsv1 : 0
+      );
+    }
+
+    private static void WriteClientFrameWithFirstByteFlags (
+      NetworkStream stream,
+      int opcode,
+      byte[] payload,
+      bool fin,
+      bool mask,
+      int firstByteFlags
+    )
+    {
       var frame = new MemoryStream ();
       var firstByte = (byte) opcode;
 
       if (fin)
         firstByte |= 0x80;
 
-      if (rsv1)
-        firstByte |= 0x40;
+      firstByte |= (byte) firstByteFlags;
 
       frame.WriteByte (firstByte);
 
