@@ -53,6 +53,10 @@ namespace WebSocketSharp.Server
     private Func<string, bool>                               _hostValidator;
     private string                                           _id;
     private bool                                             _ignoreExtensions;
+    private int                                              _maxAsyncSendQueueLength;
+    private long                                             _maxFramePayloadLength;
+    private int                                              _maxMessageEventQueueLength;
+    private long                                             _maxMessagePayloadLength;
     private bool                                             _noDelay;
     private Func<string, bool>                               _originValidator;
     private string                                           _protocol;
@@ -71,6 +75,10 @@ namespace WebSocketSharp.Server
     /// </summary>
     protected WebSocketBehavior ()
     {
+      _maxAsyncSendQueueLength = WebSocket.DefaultMaxAsyncSendQueueLength;
+      _maxFramePayloadLength = WebSocket.DefaultMaxFramePayloadLength;
+      _maxMessageEventQueueLength = WebSocket.DefaultMaxMessageEventQueueLength;
+      _maxMessagePayloadLength = WebSocket.DefaultMaxMessagePayloadLength;
       _startTime = DateTime.MaxValue;
     }
 
@@ -421,6 +429,110 @@ namespace WebSocketSharp.Server
     }
 
     /// <summary>
+    /// Gets or sets the maximum payload length for a single received frame.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 16 MiB.
+    /// </remarks>
+    public long MaxFramePayloadLength {
+      get {
+        return _registered
+               ? _websocket.MaxFramePayloadLength
+               : _maxFramePayloadLength;
+      }
+
+      set {
+        if (_registered) {
+          var msg = "The session has already started.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        WebSocket.CheckMaxFramePayloadLength (value, "value");
+
+        _maxFramePayloadLength = value;
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum payload length for an assembled received message.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 64 MiB.
+    /// </remarks>
+    public long MaxMessagePayloadLength {
+      get {
+        return _registered
+               ? _websocket.MaxMessagePayloadLength
+               : _maxMessagePayloadLength;
+      }
+
+      set {
+        if (_registered) {
+          var msg = "The session has already started.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        WebSocket.CheckPositiveLength (value, "value");
+
+        _maxMessagePayloadLength = value;
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of received message events queued for dispatch.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 1024.
+    /// </remarks>
+    public int MaxMessageEventQueueLength {
+      get {
+        return _registered
+               ? _websocket.MaxMessageEventQueueLength
+               : _maxMessageEventQueueLength;
+      }
+
+      set {
+        if (_registered) {
+          var msg = "The session has already started.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        WebSocket.CheckPositiveCount (value, "value");
+
+        _maxMessageEventQueueLength = value;
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of asynchronous sends queued for execution.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 256.
+    /// </remarks>
+    public int MaxAsyncSendQueueLength {
+      get {
+        return _registered
+               ? _websocket.MaxAsyncSendQueueLength
+               : _maxAsyncSendQueueLength;
+      }
+
+      set {
+        if (_registered) {
+          var msg = "The session has already started.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        WebSocket.CheckPositiveCount (value, "value");
+
+        _maxAsyncSendQueueLength = value;
+      }
+    }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the underlying TCP socket of
     /// the WebSocket interface for a session disables a delay when send or
     /// receive buffer is not full.
@@ -730,6 +842,11 @@ namespace WebSocketSharp.Server
 
       if (_ignoreExtensions)
         _websocket.IgnoreExtensions = true;
+
+      _websocket.MaxAsyncSendQueueLength = _maxAsyncSendQueueLength;
+      _websocket.MaxFramePayloadLength = _maxFramePayloadLength;
+      _websocket.MaxMessageEventQueueLength = _maxMessageEventQueueLength;
+      _websocket.MaxMessagePayloadLength = _maxMessagePayloadLength;
 
       if (_noDelay)
         _websocket.NoDelay = true;

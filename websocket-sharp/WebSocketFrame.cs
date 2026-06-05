@@ -542,12 +542,13 @@ namespace WebSocketSharp
 
     private static WebSocketFrame readPayloadData (
       Stream stream,
-      WebSocketFrame frame
+      WebSocketFrame frame,
+      ulong maxPayloadLength
     )
     {
       var exactPayloadLen = frame.ExactPayloadLength;
 
-      if (exactPayloadLen > PayloadData.MaxLength) {
+      if (exactPayloadLen > maxPayloadLength) {
         var msg = "The payload data of a frame is too big.";
 
         throw new WebSocketException (CloseStatusCode.TooBig, msg);
@@ -578,13 +579,14 @@ namespace WebSocketSharp
     private static void readPayloadDataAsync (
       Stream stream,
       WebSocketFrame frame,
+      ulong maxPayloadLength,
       Action<WebSocketFrame> completed,
       Action<Exception> error
     )
     {
       var exactPayloadLen = frame.ExactPayloadLength;
 
-      if (exactPayloadLen > PayloadData.MaxLength) {
+      if (exactPayloadLen > maxPayloadLength) {
         var msg = "The payload data of a frame is too big.";
 
         throw new WebSocketException (CloseStatusCode.TooBig, msg);
@@ -813,11 +815,20 @@ Extended Payload Length: {7}
 
     internal static WebSocketFrame ReadFrame (Stream stream, bool unmask)
     {
+      return ReadFrame (stream, unmask, PayloadData.MaxLength);
+    }
+
+    internal static WebSocketFrame ReadFrame (
+      Stream stream,
+      bool unmask,
+      ulong maxPayloadLength
+    )
+    {
       var frame = readHeader (stream);
 
       readExtendedPayloadLength (stream, frame);
       readMaskingKey (stream, frame);
-      readPayloadData (stream, frame);
+      readPayloadData (stream, frame, maxPayloadLength);
 
       if (unmask)
         frame.Unmask ();
@@ -828,6 +839,17 @@ Extended Payload Length: {7}
     internal static void ReadFrameAsync (
       Stream stream,
       bool unmask,
+      Action<WebSocketFrame> completed,
+      Action<Exception> error
+    )
+    {
+      ReadFrameAsync (stream, unmask, PayloadData.MaxLength, completed, error);
+    }
+
+    internal static void ReadFrameAsync (
+      Stream stream,
+      bool unmask,
+      ulong maxPayloadLength,
       Action<WebSocketFrame> completed,
       Action<Exception> error
     )
@@ -846,6 +868,7 @@ Extended Payload Length: {7}
                   readPayloadDataAsync (
                     stream,
                     frame2,
+                    maxPayloadLength,
                     frame3 => {
                       if (unmask)
                         frame3.Unmask ();

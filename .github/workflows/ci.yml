@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore websocket-sharp/websocket-sharp.csproj
+
+      - name: Build
+        run: dotnet build websocket-sharp/websocket-sharp.csproj -c Release --no-restore
+
+      - name: Unit tests
+        run: dotnet test tests/WebSocketSharp.Tests/WebSocketSharp.Tests.csproj -c Release --no-restore

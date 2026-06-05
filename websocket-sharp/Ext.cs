@@ -123,6 +123,15 @@ namespace WebSocketSharp
         return input.decompressToArray ();
     }
 
+    private static byte[] decompress (this byte[] data, long maxLength)
+    {
+      if (data.LongLength == 0)
+        return data;
+
+      using (var input = new MemoryStream (data))
+        return input.decompressToArray (maxLength);
+    }
+
     private static MemoryStream decompress (this Stream stream)
     {
       var ret = new MemoryStream ();
@@ -143,9 +152,31 @@ namespace WebSocketSharp
       }
     }
 
+    private static MemoryStream decompress (this Stream stream, long maxLength)
+    {
+      if (stream.Length == 0)
+        return new MemoryStream ();
+
+      stream.Position = 0;
+
+      var mode = CompressionMode.Decompress;
+
+      using (var ds = new DeflateStream (stream, mode, true))
+        return readToMemoryStream (ds, maxLength);
+    }
+
     private static byte[] decompressToArray (this Stream stream)
     {
       using (var output = stream.decompress ()) {
+        output.Close ();
+
+        return output.ToArray ();
+      }
+    }
+
+    private static byte[] decompressToArray (this Stream stream, long maxLength)
+    {
+      using (var output = stream.decompress (maxLength)) {
         output.Close ();
 
         return output.ToArray ();
@@ -180,6 +211,35 @@ namespace WebSocketSharp
       }
 
       return false;
+    }
+
+    private static MemoryStream readToMemoryStream (Stream stream, long maxLength)
+    {
+      var ret = new MemoryStream ();
+      var buff = new byte[1024];
+      long total = 0;
+
+      while (true) {
+        var read = stream.Read (buff, 0, buff.Length);
+
+        if (read <= 0) {
+          ret.Position = 0;
+
+          return ret;
+        }
+
+        total += read;
+
+        if (total > maxLength) {
+          ret.Dispose ();
+
+          var msg = "The payload data of a message is too big.";
+
+          throw new WebSocketException (CloseStatusCode.TooBig, msg);
+        }
+
+        ret.Write (buff, 0, read);
+      }
     }
 
     #endregion
@@ -374,6 +434,23 @@ namespace WebSocketSharp
       return method == CompressionMethod.Deflate ? data.decompress () : data;
     }
 
+    internal static byte[] Decompress (
+      this byte[] data,
+      CompressionMethod method,
+      long maxLength
+    )
+    {
+      if (method == CompressionMethod.Deflate)
+        return data.decompress (maxLength);
+
+      if (data.LongLength <= maxLength)
+        return data;
+
+      var msg = "The payload data of a message is too big.";
+
+      throw new WebSocketException (CloseStatusCode.TooBig, msg);
+    }
+
     internal static Stream Decompress (
       this Stream stream,
       CompressionMethod method
@@ -392,6 +469,18 @@ namespace WebSocketSharp
       return method == CompressionMethod.Deflate
              ? stream.decompressToArray ()
              : stream.ToByteArray ();
+    }
+
+    internal static byte[] DecompressToArray (
+      this Stream stream,
+      CompressionMethod method,
+      long maxLength
+    )
+    {
+      if (method == CompressionMethod.Deflate)
+        return stream.decompressToArray (maxLength);
+
+      return stream.ToByteArray (maxLength);
     }
 
     internal static void Emit (
@@ -972,6 +1061,17 @@ namespace WebSocketSharp
 
       using (var buff = new MemoryStream ()) {
         stream.CopyTo (buff, 1024);
+        buff.Close ();
+
+        return buff.ToArray ();
+      }
+    }
+
+    internal static byte[] ToByteArray (this Stream stream, long maxLength)
+    {
+      stream.Position = 0;
+
+      using (var buff = readToMemoryStream (stream, maxLength)) {
         buff.Close ();
 
         return buff.ToArray ();

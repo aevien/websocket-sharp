@@ -87,6 +87,7 @@ namespace WebSocketSharp
     private Func<bool>                     _executorBeforeClose;
     private Func<bool>                     _executorBeforeOpen;
     private string                         _extensions;
+    private object                         _forAsyncSendQueue;
     private object                         _forMessageEventQueue;
     private object                         _forPing;
     private object                         _forSend;
@@ -105,6 +106,10 @@ namespace WebSocketSharp
     private bool                           _inContinuation;
     private volatile bool                  _inMessage;
     private volatile Logger                _log;
+    private int                            _maxAsyncSendQueueLength;
+    private long                           _maxFramePayloadLength;
+    private int                            _maxMessageEventQueueLength;
+    private long                           _maxMessagePayloadLength;
     private static readonly int            _maxRetryCountForConnect;
     private Action<MessageEventArgs>       _message;
     private Queue<MessageEventArgs>        _messageEventQueue;
@@ -129,6 +134,31 @@ namespace WebSocketSharp
     private WebHeaderCollection            _userHeaders;
     private const string                   _version = "13";
     private TimeSpan                       _waitTime;
+    private int                            _asyncSendQueueLength;
+
+    #endregion
+
+    #region Public Fields
+
+    /// <summary>
+    /// Represents the default maximum payload length for a single received frame.
+    /// </summary>
+    public static readonly long DefaultMaxFramePayloadLength;
+
+    /// <summary>
+    /// Represents the default maximum payload length for an assembled received message.
+    /// </summary>
+    public static readonly long DefaultMaxMessagePayloadLength;
+
+    /// <summary>
+    /// Represents the default maximum number of queued received message events.
+    /// </summary>
+    public static readonly int DefaultMaxMessageEventQueueLength;
+
+    /// <summary>
+    /// Represents the default maximum number of queued asynchronous sends.
+    /// </summary>
+    public static readonly int DefaultMaxAsyncSendQueueLength;
 
     #endregion
 
@@ -162,6 +192,10 @@ namespace WebSocketSharp
     static WebSocket ()
     {
       _emptyBytes = new byte[0];
+      DefaultMaxFramePayloadLength = 16 * 1024 * 1024;
+      DefaultMaxMessagePayloadLength = 64 * 1024 * 1024;
+      DefaultMaxMessageEventQueueLength = 1024;
+      DefaultMaxAsyncSendQueueLength = 256;
       _maxRetryCountForConnect = 10;
 
       FragmentLength = 1016;
@@ -766,6 +800,110 @@ namespace WebSocketSharp
     }
 
     /// <summary>
+    /// Gets or sets the maximum payload length for a single received frame.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 16 MiB.
+    /// </remarks>
+    public long MaxFramePayloadLength {
+      get {
+        return _maxFramePayloadLength;
+      }
+
+      set {
+        CheckMaxFramePayloadLength (value, "value");
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _maxFramePayloadLength = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum payload length for an assembled received message.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 64 MiB.
+    /// </remarks>
+    public long MaxMessagePayloadLength {
+      get {
+        return _maxMessagePayloadLength;
+      }
+
+      set {
+        CheckPositiveLength (value, "value");
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _maxMessagePayloadLength = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of received message events queued for dispatch.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 1024.
+    /// </remarks>
+    public int MaxMessageEventQueueLength {
+      get {
+        return _maxMessageEventQueueLength;
+      }
+
+      set {
+        CheckPositiveCount (value, "value");
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _maxMessageEventQueueLength = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of asynchronous sends queued for execution.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 256.
+    /// </remarks>
+    public int MaxAsyncSendQueueLength {
+      get {
+        return _maxAsyncSendQueueLength;
+      }
+
+      set {
+        CheckPositiveCount (value, "value");
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _maxAsyncSendQueueLength = value;
+        }
+      }
+    }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the underlying TCP socket
     /// disables a delay when send or receive buffer is not full.
     /// </summary>
@@ -1185,6 +1323,33 @@ namespace WebSocketSharp
     {
       return _readyState == WebSocketState.New
              || _readyState == WebSocketState.Closed;
+    }
+
+    internal static void CheckMaxFramePayloadLength (long value, string paramName)
+    {
+      if (value < 125) {
+        var msg = "Less than 125.";
+
+        throw new ArgumentOutOfRangeException (paramName, msg);
+      }
+    }
+
+    internal static void CheckPositiveCount (int value, string paramName)
+    {
+      if (value <= 0) {
+        var msg = "Zero or less.";
+
+        throw new ArgumentOutOfRangeException (paramName, msg);
+      }
+    }
+
+    internal static void CheckPositiveLength (long value, string paramName)
+    {
+      if (value <= 0) {
+        var msg = "Zero or less.";
+
+        throw new ArgumentOutOfRangeException (paramName, msg);
+      }
     }
 
     // As server
@@ -1897,10 +2062,16 @@ namespace WebSocketSharp
       return true;
     }
 
-    private void enqueueToMessageEventQueue (MessageEventArgs e)
+    private bool enqueueToMessageEventQueue (MessageEventArgs e)
     {
-      lock (_forMessageEventQueue)
+      lock (_forMessageEventQueue) {
+        if (_messageEventQueue.Count >= _maxMessageEventQueueLength)
+          return false;
+
         _messageEventQueue.Enqueue (e);
+
+        return true;
+      }
     }
 
     private void error (string message, Exception exception)
@@ -1948,11 +2119,16 @@ namespace WebSocketSharp
     private void init ()
     {
       _compression = CompressionMethod.None;
+      _forAsyncSendQueue = new object ();
       _forPing = new object ();
       _forSend = new object ();
       _forState = new object ();
       _messageEventQueue = new Queue<MessageEventArgs> ();
       _forMessageEventQueue = ((ICollection) _messageEventQueue).SyncRoot;
+      _maxAsyncSendQueueLength = DefaultMaxAsyncSendQueueLength;
+      _maxFramePayloadLength = DefaultMaxFramePayloadLength;
+      _maxMessageEventQueueLength = DefaultMaxMessageEventQueueLength;
+      _maxMessagePayloadLength = DefaultMaxMessagePayloadLength;
       _readyState = WebSocketState.New;
     }
 
@@ -2140,9 +2316,31 @@ namespace WebSocketSharp
 
     private bool processDataFrame (WebSocketFrame frame)
     {
-      var data = frame.IsCompressed
-                 ? frame.PayloadData.ApplicationData.Decompress (_compression)
-                 : frame.PayloadData.ApplicationData;
+      byte[] data;
+
+      try {
+        data = frame.IsCompressed
+               ? frame.PayloadData.ApplicationData.Decompress (
+                   _compression,
+                   _maxMessagePayloadLength
+                 )
+               : frame.PayloadData.ApplicationData;
+      }
+      catch (WebSocketException ex) {
+        _log.Error (ex.Message);
+        close (new PayloadData (ex.Code, ex.Message), true, false);
+
+        return false;
+      }
+
+      if (data.LongLength > _maxMessagePayloadLength) {
+        var msg = "The payload data of a message is too big.";
+
+        _log.Error (msg);
+        close (new PayloadData ((ushort) CloseStatusCode.TooBig, msg), true, false);
+
+        return false;
+      }
 
       if (frame.IsText && !isValidTextPayload (data)) {
         var msg = "A text frame contains invalid UTF-8.";
@@ -2155,7 +2353,8 @@ namespace WebSocketSharp
 
       var e = new MessageEventArgs (frame.Opcode, data);
 
-      enqueueToMessageEventQueue (e);
+      if (!enqueueToMessageEventQueue (e))
+        return closeDueToMessageEventQueueOverflow ();
 
       return true;
     }
@@ -2172,16 +2371,41 @@ namespace WebSocketSharp
         _inContinuation = true;
       }
 
-      _fragmentsBuffer.WriteBytes (frame.PayloadData.ApplicationData, 1024);
+      var payload = frame.PayloadData.ApplicationData;
+
+      if (_fragmentsBuffer.Length + payload.LongLength > _maxMessagePayloadLength) {
+        var msg = "The payload data of a fragmented message is too big.";
+
+        _log.Error (msg);
+        releaseFragmentsBuffer ();
+        close (new PayloadData ((ushort) CloseStatusCode.TooBig, msg), true, false);
+
+        return false;
+      }
+
+      _fragmentsBuffer.WriteBytes (payload, 1024);
 
       if (frame.IsFinal) {
         var opcode = _fragmentsOpcode;
         byte[] data;
 
-        using (_fragmentsBuffer) {
-          data = _fragmentsCompressed
-                 ? _fragmentsBuffer.DecompressToArray (_compression)
-                 : _fragmentsBuffer.ToArray ();
+        try {
+          using (_fragmentsBuffer) {
+            data = _fragmentsCompressed
+                   ? _fragmentsBuffer.DecompressToArray (
+                       _compression,
+                       _maxMessagePayloadLength
+                     )
+                   : _fragmentsBuffer.ToByteArray (_maxMessagePayloadLength);
+          }
+        }
+        catch (WebSocketException ex) {
+          _log.Error (ex.Message);
+          _fragmentsBuffer = null;
+          _inContinuation = false;
+          close (new PayloadData (ex.Code, ex.Message), true, false);
+
+          return false;
         }
 
         _fragmentsBuffer = null;
@@ -2198,10 +2422,21 @@ namespace WebSocketSharp
 
         var e = new MessageEventArgs (opcode, data);
 
-        enqueueToMessageEventQueue (e);
+        if (!enqueueToMessageEventQueue (e))
+          return closeDueToMessageEventQueueOverflow ();
       }
 
       return true;
+    }
+
+    private bool closeDueToMessageEventQueueOverflow ()
+    {
+      var msg = "The message event queue is full.";
+
+      _log.Error (msg);
+      close (new PayloadData ((ushort) CloseStatusCode.PolicyViolation, msg), true, false);
+
+      return false;
     }
 
     private static bool isValidTextPayload (byte[] data)
@@ -2285,7 +2520,8 @@ namespace WebSocketSharp
 
         var e = new MessageEventArgs (frame);
 
-        enqueueToMessageEventQueue (e);
+        if (!enqueueToMessageEventQueue (e))
+          return closeDueToMessageEventQueueOverflow ();
       }
 
       return true;
@@ -2334,8 +2570,18 @@ namespace WebSocketSharp
                  : frame.IsPong
                    ? processPongFrame (frame)
                    : frame.IsClose
-                     ? processCloseFrame (frame)
-                     : processUnsupportedFrame (frame);
+                      ? processCloseFrame (frame)
+                      : processUnsupportedFrame (frame);
+    }
+
+    private void releaseFragmentsBuffer ()
+    {
+      if (_fragmentsBuffer != null) {
+        _fragmentsBuffer.Dispose ();
+        _fragmentsBuffer = null;
+      }
+
+      _inContinuation = false;
     }
 
     // As server
@@ -2582,6 +2828,30 @@ namespace WebSocketSharp
       Action<bool> completed
     )
     {
+      if (!tryIncrementAsyncSendQueue ()) {
+        var msg = "The async send queue is full.";
+
+        _log.Error (msg);
+        sourceStream.Dispose ();
+
+        if (completed != null) {
+          try {
+            completed (false);
+          }
+          catch (Exception ex) {
+            _log.Error (ex.Message);
+            _log.Debug (ex.ToString ());
+
+            error (
+              "An exception has occurred during the callback for an async send.",
+              ex
+            );
+          }
+        }
+
+        return;
+      }
+
       AsyncHelper.Queue (
         () => {
           try {
@@ -2599,8 +2869,29 @@ namespace WebSocketSharp
               ex
             );
           }
+          finally {
+            decrementAsyncSendQueue ();
+          }
         }
       );
+    }
+
+    private void decrementAsyncSendQueue ()
+    {
+      lock (_forAsyncSendQueue)
+        _asyncSendQueueLength--;
+    }
+
+    private bool tryIncrementAsyncSendQueue ()
+    {
+      lock (_forAsyncSendQueue) {
+        if (_asyncSendQueueLength >= _maxAsyncSendQueueLength)
+          return false;
+
+        _asyncSendQueueLength++;
+
+        return true;
+      }
     }
 
     private bool sendBytes (byte[] bytes)
@@ -2820,6 +3111,7 @@ namespace WebSocketSharp
         () => WebSocketFrame.ReadFrameAsync (
                 _stream,
                 false,
+                (ulong) _maxFramePayloadLength,
                 frame => {
                   var doNext = processReceivedFrame (frame)
                                && _readyState != WebSocketState.Closed;
@@ -2843,6 +3135,16 @@ namespace WebSocketSharp
                 ex => {
                   _log.Fatal (ex.Message);
                   _log.Debug (ex.ToString ());
+
+                  var wsEx = ex as WebSocketException;
+
+                  if (wsEx != null &&
+                      wsEx.Code.IsCloseStatusCode () &&
+                      !wsEx.Code.IsReservedStatusCode ()) {
+                    close (new PayloadData (wsEx.Code, wsEx.Message), true, false);
+
+                    return;
+                  }
 
                   abort ("An exception has occurred while receiving.", ex);
                 }

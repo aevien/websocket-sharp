@@ -204,6 +204,63 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    [Test]
+    public void OversizedSingleFramePayloadReturnsTooBigCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.MaxFramePayloadLength = 125))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodeText, new byte[126], true, true);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.TooBig));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void FragmentedMessageExceedingConfiguredLimitReturnsTooBigCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.MaxMessagePayloadLength = 5))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        var stream = client.GetStream ();
+
+        WriteClientFrame (stream, OpcodeText, Encoding.UTF8.GetBytes ("abc"), false, true);
+        WriteClientFrame (stream, OpcodeContinuation, Encoding.UTF8.GetBytes ("def"), true, true);
+
+        Assert.That (ReadServerCloseCode (stream), Is.EqualTo ((ushort) CloseStatusCode.TooBig));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void CompressedMessageExceedingConfiguredLimitReturnsTooBigCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.MaxMessagePayloadLength = 64)) {
+        ushort closeCode = 0;
+        var closed = new ManualResetEvent (false);
+
+        using (var client = new WebSocket (String.Format ("ws://127.0.0.1:{0}/count", server.Port))) {
+          client.Compression = CompressionMethod.Deflate;
+          client.OnClose += (sender, e) => {
+                              closeCode = e.Code;
+                              closed.Set ();
+                            };
+
+          client.Connect ();
+          client.Send (new string ('a', 1024));
+
+          Assert.That (closed.WaitOne (Timeout), Is.True, "The client did not receive a close frame.");
+          Assert.That (closeCode, Is.EqualTo ((ushort) CloseStatusCode.TooBig));
+          WaitUntil (
+            () => server.WebSocketServices["/count"].Sessions.Count == 0,
+            "The server kept a session after rejecting oversized compressed data."
+          );
+          Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+        }
+      }
+    }
+
     [TestCase (126)]
     [TestCase (127)]
     public void CloseFrameWithNonMinimalExtendedLengthClosesConnectionWithoutDeliveringMessage (int payloadLengthCode)
@@ -423,12 +480,24 @@ namespace WebSocketSharp.Tests
 
     private static LoopbackServer StartCountingServer (string path)
     {
+      return StartCountingServer (path, null);
+    }
+
+    private static LoopbackServer StartCountingServer (
+      string path,
+      Action<CountingBehavior> configure
+    )
+    {
       CountingBehavior.Reset ();
 
       return LoopbackServer.Start (
         s => {
           s.Log.Output = (data, outputPath) => { };
-          s.AddWebSocketService<CountingBehavior> (path);
+
+          if (configure != null)
+            s.AddWebSocketService<CountingBehavior> (path, configure);
+          else
+            s.AddWebSocketService<CountingBehavior> (path);
         }
       );
     }
