@@ -4,6 +4,7 @@
 
 This fork is maintained for Unity/.NET 4.x usage while keeping the original
 `websocket-sharp` assembly identity stable for existing Unity projects.
+Fork modifications are copyright (c) 2026 aevien.
 
 Current release:
 
