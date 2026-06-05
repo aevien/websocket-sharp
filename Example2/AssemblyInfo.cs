@@ -7,9 +7,9 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyTitle("Example2")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("aevien")]
 [assembly: AssemblyProduct("")]
-[assembly: AssemblyCopyright("sta.blockhead")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 aevien")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

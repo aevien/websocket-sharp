@@ -27,14 +27,20 @@ namespace WebSocketSharp.Tests
       var assembly = typeof (WebSocket).Assembly;
       var fileVersion = GetCustomAttribute<AssemblyFileVersionAttribute> (assembly);
       var informationalVersion = GetCustomAttribute<AssemblyInformationalVersionAttribute> (assembly);
+      var company = GetCustomAttribute<AssemblyCompanyAttribute> (assembly);
+      var copyright = GetCustomAttribute<AssemblyCopyrightAttribute> (assembly);
       var product = GetCustomAttribute<AssemblyProductAttribute> (assembly);
       var fileInfo = FileVersionInfo.GetVersionInfo (assembly.Location);
 
       Assert.That (fileVersion.Version, Is.EqualTo ("1.2.1.0"));
       Assert.That (informationalVersion.InformationalVersion, Is.EqualTo ("1.2.1.0"));
+      Assert.That (company.Company, Is.EqualTo ("aevien"));
+      Assert.That (copyright.Copyright, Is.EqualTo ("Copyright (c) 2026 aevien"));
       Assert.That (product.Product, Is.EqualTo ("websocket-sharp.dll"));
       Assert.That (fileInfo.FileVersion, Is.EqualTo ("1.2.1.0"));
       Assert.That (fileInfo.ProductVersion, Is.EqualTo ("1.2.1.0"));
+      Assert.That (fileInfo.CompanyName, Is.EqualTo ("aevien"));
+      Assert.That (fileInfo.LegalCopyright, Is.EqualTo ("Copyright (c) 2026 aevien"));
       Assert.That (fileInfo.ProductName, Is.EqualTo ("websocket-sharp.dll"));
     }
 

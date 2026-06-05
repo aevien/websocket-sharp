@@ -7,9 +7,9 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyTitle("websocket-sharp")]
 [assembly: AssemblyDescription("A C# implementation of the WebSocket protocol client and server")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("aevien")]
 [assembly: AssemblyProduct("websocket-sharp.dll")]
-[assembly: AssemblyCopyright("sta.blockhead")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 aevien")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
