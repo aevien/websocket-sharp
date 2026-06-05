@@ -40,9 +40,9 @@ websocket-sharp supports:
 
 ## Verification summary ##
 
-This preview was verified as a self-built Unity/.NET 4.x DLL.
+The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `52/52` NUnit tests passed on `net472`.
+- Repository normal suite: `57/57` NUnit tests passed on `net472`.
 - Repository stress suite: `7/7` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
@@ -53,6 +53,7 @@ This preview was verified as a self-built Unity/.NET 4.x DLL.
 - TLS stress: 20 silent TLS handshakes are disconnected by the server timeout while a valid secure echo client still opens, echoes, and closes.
 - Async lifecycle: repeated `ConnectAsync` / `SendAsync` / `CloseAsync` cycles complete successfully, including a 500-cycle stress run.
 - Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
+- Proxy path: HTTP CONNECT tunnel echo, silent proxy timeout, failed proxy response, 407 without credentials, and Basic proxy auth retry after a closed challenge connection are covered.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
