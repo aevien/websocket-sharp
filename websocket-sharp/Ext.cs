@@ -53,6 +53,7 @@ using System.IO.Compression;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using WebSocketSharp.Net;
 using WebSocketSharp.Net.WebSockets;
 using WebSocketSharp.Server;
@@ -240,6 +241,19 @@ namespace WebSocketSharp
 
         ret.Write (buff, 0, read);
       }
+    }
+
+    private static int toTimeoutMilliseconds (TimeSpan timeout)
+    {
+      if (timeout <= TimeSpan.Zero)
+        return Timeout.Infinite;
+
+      var milliseconds = timeout.TotalMilliseconds;
+
+      if (milliseconds > Int32.MaxValue)
+        return Int32.MaxValue;
+
+      return Math.Max (1, (int) milliseconds);
     }
 
     #endregion
@@ -840,45 +854,100 @@ namespace WebSocketSharp
       Action<Exception> error
     )
     {
+      stream.ReadBytesAsync (
+        length,
+        TimeSpan.Zero,
+        false,
+        completed,
+        error
+      );
+    }
+
+    internal static void ReadBytesAsync (
+      this Stream stream,
+      int length,
+      TimeSpan timeout,
+      bool timeoutStartsImmediately,
+      Action<byte[]> completed,
+      Action<Exception> error
+    )
+    {
       var ret = new byte[length];
 
       var offset = 0;
       var retry = 0;
+      var remaining = length;
+      var timeoutMilliseconds = toTimeoutMilliseconds (timeout);
+      var sync = new object ();
+      var done = false;
+      Timer timer = null;
 
-      AsyncCallback callback = null;
-      callback =
-        ar => {
+      Action<Exception> fail = null;
+      Action armTimer = null;
+      Action<byte[]> complete = null;
+      Action beginRead = null;
+
+      fail =
+        ex => {
+          lock (sync) {
+            if (done)
+              return;
+
+            done = true;
+
+            if (timer != null) {
+              timer.Dispose ();
+              timer = null;
+            }
+          }
+
+          if (error != null)
+            error (ex);
+        };
+
+      armTimer =
+        () => {
+          if (timeoutMilliseconds == Timeout.Infinite)
+            return;
+
+          lock (sync) {
+            if (done)
+              return;
+
+            if (timer == null)
+              timer = new Timer (
+                state => fail (
+                  new WebSocketException (
+                    CloseStatusCode.ProtocolError,
+                    "A frame read has timed out."
+                  )
+                ),
+                null,
+                Timeout.Infinite,
+                Timeout.Infinite
+              );
+
+            timer.Change (timeoutMilliseconds, Timeout.Infinite);
+          }
+        };
+
+      complete =
+        bytes => {
+          lock (sync) {
+            if (done)
+              return;
+
+            done = true;
+
+            if (timer != null) {
+              timer.Dispose ();
+              timer = null;
+            }
+          }
+
           try {
-            var nread = stream.EndRead (ar);
-
-            if (nread <= 0) {
-              if (retry < _maxRetry) {
-                retry++;
-
-                stream.BeginRead (ret, offset, length, callback, null);
-
-                return;
-              }
-
-              if (completed != null)
-                completed (ret.SubArray (0, offset));
-
-              return;
-            }
-
-            if (nread == length) {
-              if (completed != null)
-                completed (ret);
-
-              return;
-            }
-
-            retry = 0;
-
-            offset += nread;
-            length -= nread;
-
-            stream.BeginRead (ret, offset, length, callback, null);
+            if (completed != null)
+              completed (bytes);
           }
           catch (Exception ex) {
             if (error != null)
@@ -886,12 +955,82 @@ namespace WebSocketSharp
           }
         };
 
+      AsyncCallback callback = null;
+      callback =
+        ar => {
+          int nread;
+
+          try {
+            lock (sync) {
+              if (done)
+                return;
+            }
+
+            nread = stream.EndRead (ar);
+          }
+          catch (Exception ex) {
+            fail (ex);
+
+            return;
+          }
+
+          lock (sync) {
+            if (done)
+              return;
+          }
+
+          if (nread <= 0) {
+            if (retry < _maxRetry) {
+              retry++;
+
+              beginRead ();
+
+              return;
+            }
+
+            complete (ret.SubArray (0, offset));
+
+            return;
+          }
+
+          retry = 0;
+
+          offset += nread;
+          remaining -= nread;
+
+          if (remaining == 0) {
+            complete (ret);
+
+            return;
+          }
+
+          armTimer ();
+          beginRead ();
+        };
+
+      beginRead =
+        () => {
+          try {
+            lock (sync) {
+              if (done)
+                return;
+            }
+
+            stream.BeginRead (ret, offset, remaining, callback, null);
+          }
+          catch (Exception ex) {
+            fail (ex);
+          }
+        };
+
       try {
-        stream.BeginRead (ret, offset, length, callback, null);
+        if (timeoutStartsImmediately)
+          armTimer ();
+
+        beginRead ();
       }
       catch (Exception ex) {
-        if (error != null)
-          error (ex);
+        fail (ex);
       }
     }
 
@@ -903,24 +1042,148 @@ namespace WebSocketSharp
       Action<Exception> error
     )
     {
+      stream.ReadBytesAsync (
+        length,
+        bufferLength,
+        TimeSpan.Zero,
+        false,
+        completed,
+        error
+      );
+    }
+
+    internal static void ReadBytesAsync (
+      this Stream stream,
+      long length,
+      int bufferLength,
+      TimeSpan timeout,
+      bool timeoutStartsImmediately,
+      Action<byte[]> completed,
+      Action<Exception> error
+    )
+    {
       var dest = new MemoryStream ();
 
       var buff = new byte[bufferLength];
       var retry = 0;
+      var timeoutMilliseconds = toTimeoutMilliseconds (timeout);
+      var sync = new object ();
+      var done = false;
+      Timer timer = null;
 
       Action<long> read = null;
+      Action<Exception> fail = null;
+      Action armTimer = null;
+      Action<byte[]> complete = null;
+
+      fail =
+        ex => {
+          lock (sync) {
+            if (done)
+              return;
+
+            done = true;
+
+            if (timer != null) {
+              timer.Dispose ();
+              timer = null;
+            }
+          }
+
+          dest.Dispose ();
+
+          if (error != null)
+            error (ex);
+        };
+
+      armTimer =
+        () => {
+          if (timeoutMilliseconds == Timeout.Infinite)
+            return;
+
+          lock (sync) {
+            if (done)
+              return;
+
+            if (timer == null)
+              timer = new Timer (
+                state => fail (
+                  new WebSocketException (
+                    CloseStatusCode.ProtocolError,
+                    "A frame read has timed out."
+                  )
+                ),
+                null,
+                Timeout.Infinite,
+                Timeout.Infinite
+              );
+
+            timer.Change (timeoutMilliseconds, Timeout.Infinite);
+          }
+        };
+
+      complete =
+        bytes => {
+          lock (sync) {
+            if (done)
+              return;
+
+            done = true;
+
+            if (timer != null) {
+              timer.Dispose ();
+              timer = null;
+            }
+          }
+
+          dest.Dispose ();
+
+          try {
+            if (completed != null)
+              completed (bytes);
+          }
+          catch (Exception ex) {
+            if (error != null)
+              error (ex);
+          }
+        };
+
       read =
         len => {
           if (len < bufferLength)
             bufferLength = (int) len;
 
-          stream.BeginRead (
-            buff,
-            0,
-            bufferLength,
-            ar => {
-              try {
-                var nread = stream.EndRead (ar);
+          try {
+            lock (sync) {
+              if (done)
+                return;
+            }
+
+            stream.BeginRead (
+              buff,
+              0,
+              bufferLength,
+              ar => {
+                int nread;
+
+                try {
+                  lock (sync) {
+                    if (done)
+                      return;
+                  }
+
+                  nread = stream.EndRead (ar);
+                }
+                catch (Exception ex) {
+                  fail (ex);
+
+                  return;
+                }
+
+                lock (sync) {
+                  if (done)
+                    return;
+                }
 
                 if (nread <= 0) {
                   if (retry < _maxRetry) {
@@ -931,15 +1194,8 @@ namespace WebSocketSharp
                     return;
                   }
 
-                  if (completed != null) {
-                    dest.Close ();
-
-                    var ret = dest.ToArray ();
-
-                    completed (ret);
-                  }
-
-                  dest.Dispose ();
+                  dest.Close ();
+                  complete (dest.ToArray ());
 
                   return;
                 }
@@ -947,42 +1203,33 @@ namespace WebSocketSharp
                 dest.Write (buff, 0, nread);
 
                 if (nread == len) {
-                  if (completed != null) {
-                    dest.Close ();
-
-                    var ret = dest.ToArray ();
-
-                    completed (ret);
-                  }
-
-                  dest.Dispose ();
+                  dest.Close ();
+                  complete (dest.ToArray ());
 
                   return;
                 }
 
                 retry = 0;
 
+                armTimer ();
                 read (len - nread);
-              }
-              catch (Exception ex) {
-                dest.Dispose ();
-
-                if (error != null)
-                  error (ex);
-              }
-            },
-            null
-          );
+              },
+              null
+            );
+          }
+          catch (Exception ex) {
+            fail (ex);
+          }
         };
 
       try {
+        if (timeoutStartsImmediately)
+          armTimer ();
+
         read (length);
       }
       catch (Exception ex) {
-        dest.Dispose ();
-
-        if (error != null)
-          error (ex);
+        fail (ex);
       }
     }
 

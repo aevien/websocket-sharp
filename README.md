@@ -7,19 +7,20 @@ This fork is maintained for Unity/.NET 4.x usage while keeping the original
 
 Current preview:
 
-- Tag: `v1.0.4-unity-preview.1`
-- Release: [websocket-sharp v1.0.4 Unity Preview 1](https://github.com/aevien/websocket-sharp/releases/tag/v1.0.4-unity-preview.1)
+- Tag: `v1.0.5-unity-preview.1`
+- Release: [websocket-sharp v1.0.5 Unity Preview 1](https://github.com/aevien/websocket-sharp/releases/tag/v1.0.5-unity-preview.1)
 - Target framework: `net472`
 - Assembly name: `websocket-sharp`
 - Assembly version: `1.0.2.32832` (kept for Unity binary compatibility)
-- File/product version: `1.0.4.0`
+- File/product version: `1.0.5.0`
 - WebGL: not supported by this managed socket implementation. Unity WebGL should
   continue to use the browser JavaScript WebSocket layer.
 
 Recent fork changes include safer TLS certificate validation defaults, bounded
 client/server handshake timeouts, replacement of delegate `BeginInvoke` usage,
 async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
-stricter RFC 6455 frame validation, and bounded receive/send resource limits.
+stricter RFC 6455 frame validation, bounded receive/send resource limits,
+and partial-frame receive timeouts.
 
 websocket-sharp supports:
 
@@ -41,11 +42,11 @@ websocket-sharp supports:
 
 This preview was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `46/46` NUnit tests passed on `net472`.
+- Repository normal suite: `49/49` NUnit tests passed on `net472`.
 - Repository stress suite: `6/6` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
-- Version metadata: file version and product version both report `1.0.4.0`.
+- Version metadata: file version and product version both report `1.0.5.0`.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
 - TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
 - Async lifecycle: repeated `ConnectAsync` / `SendAsync` / `CloseAsync` cycles complete successfully, including a 500-cycle stress run.
@@ -58,6 +59,7 @@ This preview was verified as a self-built Unity/.NET 4.x DLL.
 - Protocol frames: payload boundaries `125`, `126`, and `66000` bytes round-trip; fragmented text can receive interleaved ping; malformed frames close protocol-error sessions.
 - Close-frame validation: one-byte payloads, invalid/reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding are covered.
 - Payload limits: oversized single frames, fragmented messages over the assembled-message limit, and compressed messages that inflate past the configured limit close with `1009 TooBig` without delivering `OnMessage`.
+- Receive timeout: idle open connections are not closed by the timeout, but partial frame header/payload stalls close with protocol error without delivering `OnMessage`.
 
 ## Build ##
 
@@ -93,8 +95,8 @@ GitHub Actions:
 
 Download the Unity preview from the GitHub release page:
 
-- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.0.4-unity-preview.1/websocket-sharp.dll)
-- [websocket-sharp-v1.0.4-unity-preview.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.0.4-unity-preview.1/websocket-sharp-v1.0.4-unity-preview.1-unity-net472.zip)
+- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.0.5-unity-preview.1/websocket-sharp.dll)
+- [websocket-sharp-v1.0.5-unity-preview.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.0.5-unity-preview.1/websocket-sharp-v1.0.5-unity-preview.1-unity-net472.zip)
 
 ### Self Build ###
 
@@ -124,6 +126,7 @@ resource risks in old WebSocket stacks:
 - `WebSocket.MaxMessagePayloadLength`: default `64 MiB`
 - `WebSocket.MaxMessageEventQueueLength`: default `1024`
 - `WebSocket.MaxAsyncSendQueueLength`: default `256`
+- `WebSocket.FrameReadTimeout`: default `10 seconds`
 
 Set these values before `Connect`, `ConnectAsync`, or server `Accept`. For
 server services, set the matching properties on `WebSocketBehavior` in
@@ -135,9 +138,14 @@ wssv.AddWebSocketService<Echo> (
   s => {
     s.MaxFramePayloadLength = 1024 * 1024;
     s.MaxMessagePayloadLength = 4 * 1024 * 1024;
+    s.FrameReadTimeout = TimeSpan.FromSeconds (5);
   }
 );
 ```
+
+`FrameReadTimeout` does not close an idle open connection with no incoming
+bytes. It applies after a peer starts a WebSocket frame and then stalls while
+the rest of that frame is being read.
 
 ## Usage ##
 

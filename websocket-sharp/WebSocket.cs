@@ -92,6 +92,7 @@ namespace WebSocketSharp
     private object                         _forPing;
     private object                         _forSend;
     private object                         _forState;
+    private TimeSpan                       _frameReadTimeout;
     private MemoryStream                   _fragmentsBuffer;
     private bool                           _fragmentsCompressed;
     private Opcode                         _fragmentsOpcode;
@@ -160,6 +161,11 @@ namespace WebSocketSharp
     /// </summary>
     public static readonly int DefaultMaxAsyncSendQueueLength;
 
+    /// <summary>
+    /// Represents the default timeout for a partial WebSocket frame read.
+    /// </summary>
+    public static readonly TimeSpan DefaultFrameReadTimeout;
+
     #endregion
 
     #region Internal Fields
@@ -196,6 +202,7 @@ namespace WebSocketSharp
       DefaultMaxMessagePayloadLength = 64 * 1024 * 1024;
       DefaultMaxMessageEventQueueLength = 1024;
       DefaultMaxAsyncSendQueueLength = 256;
+      DefaultFrameReadTimeout = TimeSpan.FromSeconds (10);
       _maxRetryCountForConnect = 10;
 
       FragmentLength = 1016;
@@ -899,6 +906,39 @@ namespace WebSocketSharp
           }
 
           _maxAsyncSendQueueLength = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the timeout for a partial WebSocket frame read.
+    /// </summary>
+    /// <remarks>
+    /// The timeout starts only after a peer begins a frame or when the
+    /// implementation is waiting for the rest of an already-started frame.
+    /// An idle open connection with no incoming bytes is not closed by this
+    /// timeout. The default value is 10 seconds.
+    /// </remarks>
+    public TimeSpan FrameReadTimeout {
+      get {
+        return _frameReadTimeout;
+      }
+
+      set {
+        if (value <= TimeSpan.Zero) {
+          var msg = "Zero or less.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _frameReadTimeout = value;
         }
       }
     }
@@ -2119,6 +2159,7 @@ namespace WebSocketSharp
     private void init ()
     {
       _compression = CompressionMethod.None;
+      _frameReadTimeout = DefaultFrameReadTimeout;
       _forAsyncSendQueue = new object ();
       _forPing = new object ();
       _forSend = new object ();
@@ -3112,6 +3153,7 @@ namespace WebSocketSharp
                 _stream,
                 false,
                 (ulong) _maxFramePayloadLength,
+                _frameReadTimeout,
                 frame => {
                   var doNext = processReceivedFrame (frame)
                                && _readyState != WebSocketState.Closed;

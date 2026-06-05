@@ -261,6 +261,55 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    [Test]
+    public void IdleConnectionDoesNotTripFrameReadTimeout ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.FrameReadTimeout = TimeSpan.FromMilliseconds (150)))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        Thread.Sleep (500);
+
+        Assert.That (server.WebSocketServices["/count"].Sessions.Count, Is.EqualTo (1));
+        Assert.That (IsDisconnected (client), Is.False);
+
+        client.Close ();
+        WaitUntil (
+          () => server.WebSocketServices["/count"].Sessions.Count == 0,
+          "The server kept a session after an idle timeout test client closed."
+        );
+      }
+    }
+
+    [Test]
+    public void PartialFrameHeaderTimesOutWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.FrameReadTimeout = TimeSpan.FromMilliseconds (250)))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        client.GetStream ().WriteByte (0x81);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void FramePayloadThatNeverArrivesTimesOutWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.FrameReadTimeout = TimeSpan.FromMilliseconds (250)))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrameHeaderAndMaskOnly (
+          client.GetStream (),
+          OpcodeText,
+          5,
+          true
+        );
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
     [TestCase (126)]
     [TestCase (127)]
     public void CloseFrameWithNonMinimalExtendedLengthClosesConnectionWithoutDeliveringMessage (int payloadLengthCode)
@@ -606,6 +655,40 @@ namespace WebSocketSharp.Tests
       }
 
       frame.Write (data, 0, data.Length);
+
+      var bytes = frame.ToArray ();
+
+      stream.Write (bytes, 0, bytes.Length);
+    }
+
+    private static void WriteClientFrameHeaderAndMaskOnly (
+      NetworkStream stream,
+      int opcode,
+      int payloadLength,
+      bool fin
+    )
+    {
+      var frame = new MemoryStream ();
+      var firstByte = (byte) opcode;
+
+      if (fin)
+        firstByte |= 0x80;
+
+      frame.WriteByte (firstByte);
+
+      if (payloadLength <= 125) {
+        frame.WriteByte ((byte) (0x80 | payloadLength));
+      }
+      else if (payloadLength <= UInt16.MaxValue) {
+        frame.WriteByte (0x80 | 126);
+        frame.WriteUInt16BigEndian ((ushort) payloadLength);
+      }
+      else {
+        frame.WriteByte (0x80 | 127);
+        frame.WriteUInt64BigEndian ((ulong) payloadLength);
+      }
+
+      frame.Write (new byte[] { 0x11, 0x22, 0x33, 0x44 }, 0, 4);
 
       var bytes = frame.ToArray ();
 

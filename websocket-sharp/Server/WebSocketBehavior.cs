@@ -50,6 +50,7 @@ namespace WebSocketSharp.Server
     private WebSocketContext                                 _context;
     private Action<CookieCollection, CookieCollection>       _cookiesResponder;
     private bool                                             _emitOnPing;
+    private TimeSpan                                         _frameReadTimeout;
     private Func<string, bool>                               _hostValidator;
     private string                                           _id;
     private bool                                             _ignoreExtensions;
@@ -79,6 +80,7 @@ namespace WebSocketSharp.Server
       _maxFramePayloadLength = WebSocket.DefaultMaxFramePayloadLength;
       _maxMessageEventQueueLength = WebSocket.DefaultMaxMessageEventQueueLength;
       _maxMessagePayloadLength = WebSocket.DefaultMaxMessagePayloadLength;
+      _frameReadTimeout = WebSocket.DefaultFrameReadTimeout;
       _startTime = DateTime.MaxValue;
     }
 
@@ -425,6 +427,37 @@ namespace WebSocketSharp.Server
         }
 
         _ignoreExtensions = value;
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the timeout for a partial WebSocket frame read.
+    /// </summary>
+    /// <remarks>
+    /// The timeout does not close an idle open connection that has not started
+    /// sending a frame. The default value is 10 seconds.
+    /// </remarks>
+    public TimeSpan FrameReadTimeout {
+      get {
+        return _registered
+               ? _websocket.FrameReadTimeout
+               : _frameReadTimeout;
+      }
+
+      set {
+        if (_registered) {
+          var msg = "The session has already started.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        if (value <= TimeSpan.Zero) {
+          var msg = "Zero or less.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        _frameReadTimeout = value;
       }
     }
 
@@ -843,6 +876,7 @@ namespace WebSocketSharp.Server
       if (_ignoreExtensions)
         _websocket.IgnoreExtensions = true;
 
+      _websocket.FrameReadTimeout = _frameReadTimeout;
       _websocket.MaxAsyncSendQueueLength = _maxAsyncSendQueueLength;
       _websocket.MaxFramePayloadLength = _maxFramePayloadLength;
       _websocket.MaxMessageEventQueueLength = _maxMessageEventQueueLength;
