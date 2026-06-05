@@ -9,6 +9,7 @@
 var url = "ws://localhost:4649/Echo";
 //var url = "wss://localhost:5963/Echo";
 var output;
+var websocket;
 
 function init () {
   output = document.getElementById ("output");
@@ -41,12 +42,12 @@ function onOpen (event) {
 }
 
 function onMessage (event) {
-  writeToScreen ('<span style="color: blue;">RESPONSE: ' + event.data + '</span>');
+  writeToScreen ("RESPONSE: " + event.data, "blue");
   websocket.close ();
 }
 
 function onError (event) {
-  writeToScreen ('<span style="color: red;">ERROR: ' + event.data + '</span>');
+  writeToScreen ("ERROR: " + event.data, "red");
 }
 
 function onClose (event) {
@@ -58,10 +59,13 @@ function send (message) {
   websocket.send (message);
 }
 
-function writeToScreen (message) {
+function writeToScreen (message, color) {
   var pre = document.createElement ("p");
   pre.style.wordWrap = "break-word";
-  pre.innerHTML = message;
+  if (color)
+    pre.style.color = color;
+
+  pre.textContent = message;
   output.appendChild (pre);
 }
 

@@ -18,13 +18,25 @@ namespace Example
       // If you would like to connect to the server with the secure connection,
       // you should create a new instance with a wss scheme WebSocket URL.
 
+      var url = args.Length > 0 ? args[0] : "ws://localhost:4649/Chat";
+
       //using (var ws = new WebSocket ("ws://localhost:4649/Echo"))
       //using (var ws = new WebSocket ("wss://localhost:5963/Echo"))
-      using (var ws = new WebSocket ("ws://localhost:4649/Chat"))
+      using (var ws = new WebSocket (url))
       //using (var ws = new WebSocket ("wss://localhost:5963/Chat"))
       //using (var ws = new WebSocket ("ws://localhost:4649/Chat?name=nobita"))
       //using (var ws = new WebSocket ("wss://localhost:5963/Chat?name=nobita"))
       {
+        // Current fork guardrails. Configure them before Connect().
+        // In Unity projects, keep these limits explicit and close the socket
+        // from the same owner that opened it.
+        ws.ConnectionTimeout = TimeSpan.FromSeconds (10);
+        ws.FrameReadTimeout = TimeSpan.FromSeconds (5);
+        ws.MaxFramePayloadLength = 1024 * 1024;
+        ws.MaxMessagePayloadLength = 4 * 1024 * 1024;
+        ws.MaxMessageEventQueueLength = 256;
+        ws.MaxAsyncSendQueueLength = 64;
+
 #if DEBUG
         // To change the logging level.
         ws.Log.Level = LogLevel.Trace;
@@ -121,6 +133,8 @@ namespace Example
 #endif
             ws.Send ("Hi, there!");
           };
+
+        Console.WriteLine ("Connecting to {0}", url);
 
         // Connect to the server.
         ws.Connect ();

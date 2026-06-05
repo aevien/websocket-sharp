@@ -1,5 +1,6 @@
 using System;
 using System.Configuration;
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using WebSocketSharp;
 using WebSocketSharp.Net;
@@ -17,7 +18,10 @@ namespace Example2
       // create a new instance with the "secure" parameter set to true or
       // with a wss scheme WebSocket URL.
 
-      var wssv = new WebSocketServer (4649);
+      // The example listens on loopback by default so it is safe to run on a
+      // developer machine. Use IPAddress.Any only when you intentionally want
+      // other machines to reach this server.
+      var wssv = new WebSocketServer (IPAddress.Loopback, 4649);
       //var wssv = new WebSocketServer (5963, true);
 
       //var wssv = new WebSocketServer (System.Net.IPAddress.Any, 4649);
@@ -85,15 +89,24 @@ namespace Example2
       // To change the wait time for the response to the WebSocket Ping or Close.
       //wssv.WaitTime = TimeSpan.FromSeconds (2);
 #endif
+      // Bound slow or malicious handshakes before they can occupy server work.
+      // Configure this before Start().
+      wssv.HandshakeTimeout = TimeSpan.FromSeconds (5);
+
       // Add the WebSocket services.
 
-      wssv.AddWebSocketService<Echo> ("/Echo");
+      wssv.AddWebSocketService<Echo> (
+        "/Echo",
+        ConfigureServiceLimits
+      );
 
       // With initializing.
       wssv.AddWebSocketService<Chat> (
         "/Chat",
         s => {
           s.Prefix = "Anon#";
+          ConfigureServiceLimits (s);
+
 #if DEBUG
           // To respond to the cookies.
           /*
@@ -167,6 +180,17 @@ namespace Example2
 
       // Stop the server.
       wssv.Stop ();
+    }
+
+    private static void ConfigureServiceLimits (WebSocketBehavior service)
+    {
+      // Per-service receive/send guardrails. Configure these in the service
+      // initializer so they apply before the first session starts.
+      service.MaxFramePayloadLength = 1024 * 1024;
+      service.MaxMessagePayloadLength = 4 * 1024 * 1024;
+      service.MaxMessageEventQueueLength = 256;
+      service.MaxAsyncSendQueueLength = 64;
+      service.FrameReadTimeout = TimeSpan.FromSeconds (5);
     }
   }
 }

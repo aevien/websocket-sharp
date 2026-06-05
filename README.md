@@ -46,6 +46,8 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
 - Repository normal suite: `94/94` NUnit tests passed on `net472`.
 - Repository stress suite: `8/8` stress tests passed on `net472`.
+- Examples build: legacy `Example`, `Example2`, `Example3` and modern console
+  examples under `Examples` build on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
 - Version metadata: assembly file/informational versions and DLL file/product versions all report `1.2.0.0`.
@@ -98,6 +100,7 @@ dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -
 GitHub Actions:
 
 - `CI` runs on `main`, `dev`, and pull requests to those branches.
+- `CI` builds the library, normal tests, and all `net472` console examples.
 - `Stress Tests` is manual and can be started from the Actions tab.
 
 ## Install ##
@@ -798,21 +801,53 @@ The `WebSocketServer` and `HttpServer` classes have the same logging function.
 
 ## Examples ##
 
-Examples using websocket-sharp.
+Examples using websocket-sharp are split into the original layout examples and
+newer documented examples under `Examples`.
 
 ### Example ###
 
-`Example` connects to the server executed by `Example2` or `Example3`.
+`Example` is an interactive console client. By default it connects to
+`ws://localhost:4649/Chat`; pass a URL argument to connect to another endpoint.
 
 ### Example2 ###
 
-`Example2` starts a WebSocket server.
+`Example2` starts a loopback WebSocket server with `/Echo` and `/Chat` services.
+It demonstrates explicit handshake, frame, message, receive, and send queue
+limits.
 
 ### Example3 ###
 
-`Example3` starts an HTTP server that allows to accept the WebSocket handshake requests.
+`Example3` starts a loopback HTTP server that serves `Public/index.html` and
+accepts WebSocket handshake requests for `/Echo` and `/Chat`.
 
 Open `http://localhost:4649` to do **WebSocket Echo Test** with your web browser while Example3 is running.
+
+### Examples/ClientLifecycle ###
+
+`Examples/ClientLifecycle` demonstrates `ConnectAsync`, `SendAsync`,
+`CloseAsync`, lifecycle events, send completion tracking, and queueing callbacks
+back to an application/main thread.
+
+### Examples/ServerWithLimits ###
+
+`Examples/ServerWithLimits` is a compact loopback echo server focused on
+resource limits and graceful shutdown.
+
+### Examples/SecureAndProxyClient ###
+
+`Examples/SecureAndProxyClient` demonstrates secure client options: WSS
+certificate validation, explicit certificate thumbprint pinning, proxy,
+compression, origin, user headers, and connection timeout.
+
+### Examples/UnityClientLifecycle ###
+
+`Examples/UnityClientLifecycle` is a source-only `MonoBehaviour` example. It is
+not built by `dotnet` because it references `UnityEngine`; copy it into a Unity
+project that already references `websocket-sharp.dll`. It shows main-thread
+dispatch from websocket callbacks, `OnDisable` / `OnDestroy` cleanup, and WebGL
+exclusion.
+
+See `Examples/README.md` for build and run commands.
 
 ## Supported WebSocket Specifications ##
 

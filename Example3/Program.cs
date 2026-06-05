@@ -1,10 +1,12 @@
 using System;
 using System.Configuration;
+using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using WebSocketSharp;
 using WebSocketSharp.Net;
 using WebSocketSharp.Server;
+using IPAddress = System.Net.IPAddress;
 
 namespace Example3
 {
@@ -18,7 +20,10 @@ namespace Example3
       // create a new instance with the "secure" parameter set to true or
       // with an https scheme HTTP URL.
 
-      var httpsv = new HttpServer (4649);
+      // The example listens on loopback by default so it is safe to run on a
+      // developer machine. Use IPAddress.Any only when you intentionally want
+      // other machines to reach this server.
+      var httpsv = new HttpServer (IPAddress.Loopback, 4649);
       //var httpsv = new HttpServer (5963, true);
 
       //var httpsv = new HttpServer (System.Net.IPAddress.Any, 4649);
@@ -86,9 +91,12 @@ namespace Example3
       // To change the wait time for the response to the WebSocket Ping or Close.
       //httpsv.WaitTime = TimeSpan.FromSeconds (2);
 #endif
+      // Bound slow or malicious handshakes before they can occupy server work.
+      // Configure this before Start().
+      httpsv.HandshakeTimeout = TimeSpan.FromSeconds (5);
+
       // Set the document root path.
-      httpsv.DocumentRootPath = ConfigurationManager
-                                .AppSettings["DocumentRootPath"];
+      httpsv.DocumentRootPath = ResolveDocumentRootPath ();
 
       // Set the HTTP GET request event.
       httpsv.OnGet +=
@@ -125,13 +133,18 @@ namespace Example3
 
       // Add the WebSocket services.
 
-      httpsv.AddWebSocketService<Echo> ("/Echo");
+      httpsv.AddWebSocketService<Echo> (
+        "/Echo",
+        ConfigureServiceLimits
+      );
 
       // With initializing.
       httpsv.AddWebSocketService<Chat> (
         "/Chat",
         s => {
           s.Prefix = "Anon#";
+          ConfigureServiceLimits (s);
+
 #if DEBUG
           // To respond to the cookies.
           /*
@@ -205,6 +218,32 @@ namespace Example3
 
       // Stop the server.
       httpsv.Stop ();
+    }
+
+    private static string ResolveDocumentRootPath ()
+    {
+      var configured = ConfigurationManager.AppSettings["DocumentRootPath"];
+
+      if (String.IsNullOrEmpty (configured))
+        return Path.Combine (AppDomain.CurrentDomain.BaseDirectory, "Public");
+
+      if (Path.IsPathRooted (configured))
+        return configured;
+
+      return Path.GetFullPath (
+        Path.Combine (AppDomain.CurrentDomain.BaseDirectory, configured)
+      );
+    }
+
+    private static void ConfigureServiceLimits (WebSocketBehavior service)
+    {
+      // Per-service receive/send guardrails. Configure these in the service
+      // initializer so they apply before the first session starts.
+      service.MaxFramePayloadLength = 1024 * 1024;
+      service.MaxMessagePayloadLength = 4 * 1024 * 1024;
+      service.MaxMessageEventQueueLength = 256;
+      service.MaxAsyncSendQueueLength = 64;
+      service.FrameReadTimeout = TimeSpan.FromSeconds (5);
     }
   }
 }
