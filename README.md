@@ -42,7 +42,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `61/61` NUnit tests passed on `net472`.
+- Repository normal suite: `68/68` NUnit tests passed on `net472`.
 - Repository stress suite: `7/7` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
@@ -58,7 +58,7 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
 - Resource lifecycle: repeated connect-storm and slow-handshake rounds return sessions to zero and do not show steady-state thread drift beyond the accepted bounds.
-- Close lifecycle: repeated `CloseAsync` / `Dispose` calls and abrupt raw TCP disconnects return server sessions to zero.
+- Close lifecycle: repeated `Close` / `CloseAsync` / `Dispose` calls, abrupt raw TCP disconnects, protocol-error close frames, and exception-throwing close/error handlers return server sessions to zero.
 - Protocol frames: payload boundaries `125`, `126`, and `66000` bytes round-trip; fragmented text can receive interleaved ping; malformed frames close protocol-error sessions.
 - Close-frame validation: one-byte payloads, invalid/reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding are covered.
 - Compression: permessage-deflate text echo, fragmented compressed input, corrupt compressed payloads, and compressed control-frame protocol errors are covered.
