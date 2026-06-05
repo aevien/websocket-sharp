@@ -42,7 +42,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `57/57` NUnit tests passed on `net472`.
+- Repository normal suite: `61/61` NUnit tests passed on `net472`.
 - Repository stress suite: `7/7` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
@@ -61,6 +61,7 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Close lifecycle: repeated `CloseAsync` / `Dispose` calls and abrupt raw TCP disconnects return server sessions to zero.
 - Protocol frames: payload boundaries `125`, `126`, and `66000` bytes round-trip; fragmented text can receive interleaved ping; malformed frames close protocol-error sessions.
 - Close-frame validation: one-byte payloads, invalid/reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding are covered.
+- Compression: permessage-deflate text echo, fragmented compressed input, corrupt compressed payloads, and compressed control-frame protocol errors are covered.
 - Payload limits: oversized single frames, fragmented messages over the assembled-message limit, and compressed messages that inflate past the configured limit close with `1009 TooBig` without delivering `OnMessage`.
 - Receive timeout: idle open connections are not closed by the timeout, but partial frame header/payload stalls close with protocol error without delivering `OnMessage`.
 

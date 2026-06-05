@@ -2373,6 +2373,15 @@ namespace WebSocketSharp
 
         return false;
       }
+      catch (Exception ex) {
+        var msg = "The compressed payload data is invalid.";
+
+        _log.Error (msg);
+        _log.Debug (ex.ToString ());
+        close (new PayloadData ((ushort) CloseStatusCode.ProtocolError, msg), true, false);
+
+        return false;
+      }
 
       if (data.LongLength > _maxMessagePayloadLength) {
         var msg = "The payload data of a message is too big.";
@@ -2445,6 +2454,17 @@ namespace WebSocketSharp
           _fragmentsBuffer = null;
           _inContinuation = false;
           close (new PayloadData (ex.Code, ex.Message), true, false);
+
+          return false;
+        }
+        catch (Exception ex) {
+          var msg = "The compressed payload data is invalid.";
+
+          _log.Error (msg);
+          _log.Debug (ex.ToString ());
+          _fragmentsBuffer = null;
+          _inContinuation = false;
+          close (new PayloadData ((ushort) CloseStatusCode.ProtocolError, msg), true, false);
 
           return false;
         }
@@ -2595,7 +2615,7 @@ namespace WebSocketSharp
         _log.Error (msg);
         _log.Debug (frame.ToString (false));
 
-        abort (1002, "An error has occurred while receiving.");
+        close (new PayloadData ((ushort) CloseStatusCode.ProtocolError, msg), true, false);
 
         return false;
       }

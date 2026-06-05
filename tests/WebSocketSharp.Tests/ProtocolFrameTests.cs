@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -73,6 +74,105 @@ namespace WebSocketSharp.Tests
           () => server.WebSocketServices["/echo"].Sessions.Count == 0,
           "The server kept a session after fragmented text client closed."
         );
+      }
+    }
+
+    [Test]
+    public void CompressedTextRoundTripsThroughPublicClient ()
+    {
+      using (var server = LoopbackServer.Start (s => s.AddWebSocketService<EchoBehavior> ("/echo")))
+      using (var client = new WebSocket (server.GetUrl ("/echo")))
+      using (var opened = new ManualResetEvent (false))
+      using (var received = new ManualResetEvent (false)) {
+        var expected = new string ('c', 1024);
+        var actual = default (string);
+        var error = default (Exception);
+
+        client.Compression = CompressionMethod.Deflate;
+        client.OnOpen += (sender, e) => opened.Set ();
+        client.OnMessage += (sender, e) => {
+          actual = e.Data;
+          received.Set ();
+        };
+        client.OnError += (sender, e) => {
+          error = e.Exception ?? new Exception (e.Message);
+          received.Set ();
+        };
+
+        client.Connect ();
+
+        Assert.That (opened.WaitOne (Timeout), Is.True, "The compressed client did not open.");
+        AssertNoError (error);
+
+        client.Send (expected);
+
+        Assert.That (received.WaitOne (Timeout), Is.True, "The compressed echo was not received.");
+        AssertNoError (error);
+        Assert.That (actual, Is.EqualTo (expected));
+
+        client.Close ();
+      }
+    }
+
+    [Test]
+    public void FragmentedCompressedTextIsDeliveredAfterInflate ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocketWithCompression (server.Port, "/count")) {
+        var compressed = CompressForPerMessageDeflate (Encoding.UTF8.GetBytes ("fragmented compressed hello"));
+        var first = new byte[compressed.Length / 2];
+        var second = new byte[compressed.Length - first.Length];
+        var stream = client.GetStream ();
+
+        Buffer.BlockCopy (compressed, 0, first, 0, first.Length);
+        Buffer.BlockCopy (compressed, first.Length, second, 0, second.Length);
+
+        WriteClientFrame (stream, OpcodeText, first, false, true, true);
+        WriteClientFrame (stream, OpcodeContinuation, second, true, true);
+
+        WaitUntil (
+          () => CountingBehavior.MessageCount == 1,
+          "The server did not deliver a fragmented compressed text message."
+        );
+
+        CloseRawWebSocket (client);
+        WaitUntil (
+          () => server.WebSocketServices["/count"].Sessions.Count == 0,
+          "The server kept a session after fragmented compressed client closed."
+        );
+      }
+    }
+
+    [Test]
+    public void CompressedControlFrameReturnsProtocolErrorCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocketWithCompression (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodePing, Encoding.UTF8.GetBytes ("bad"), true, true, true);
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void CorruptCompressedTextReturnsProtocolErrorCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocketWithCompression (server.Port, "/count")) {
+        WriteClientFrame (
+          client.GetStream (),
+          OpcodeText,
+          new byte[] { 0x00, 0xff, 0x00, 0xff, 0x13, 0x37 },
+          true,
+          true,
+          true
+        );
+
+        Assert.That (ReadServerCloseCode (client.GetStream ()), Is.EqualTo ((ushort) CloseStatusCode.ProtocolError));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
       }
     }
 
@@ -344,7 +444,22 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    private static void AssertNoError (Exception error)
+    {
+      if (error != null)
+        Assert.Fail (error.ToString ());
+    }
+
     private static TcpClient ConnectRawWebSocket (int port, string path)
+    {
+      return ConnectRawWebSocket (port, path, null);
+    }
+
+    private static TcpClient ConnectRawWebSocket (
+      int port,
+      string path,
+      string extraHeaders
+    )
     {
       var client = new TcpClient ();
       var key = CreateWebSocketKey ();
@@ -352,10 +467,11 @@ namespace WebSocketSharp.Tests
       client.Connect (IPAddress.Loopback, port);
 
       var request = String.Format (
-        "GET {0} HTTP/1.1\r\nHost: 127.0.0.1:{1}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {2}\r\nSec-WebSocket-Version: 13\r\n\r\n",
+        "GET {0} HTTP/1.1\r\nHost: 127.0.0.1:{1}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {2}\r\nSec-WebSocket-Version: 13\r\n{3}\r\n",
         path,
         port,
-        key
+        key,
+        extraHeaders ?? String.Empty
       );
       var stream = client.GetStream ();
       var bytes = Encoding.ASCII.GetBytes (request);
@@ -368,6 +484,30 @@ namespace WebSocketSharp.Tests
         Assert.Fail ("The raw WebSocket handshake did not receive a 101 response: " + response);
 
       return client;
+    }
+
+    private static TcpClient ConnectRawWebSocketWithCompression (int port, string path)
+    {
+      var headers =
+        "Sec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover; server_no_context_takeover\r\n";
+
+      return ConnectRawWebSocket (port, path, headers);
+    }
+
+    private static byte[] CompressForPerMessageDeflate (byte[] payload)
+    {
+      if (payload.Length == 0)
+        return payload;
+
+      using (var input = new MemoryStream (payload))
+      using (var output = new MemoryStream ()) {
+        using (var deflate = new DeflateStream (output, CompressionMode.Compress, true))
+          input.CopyTo (deflate);
+
+        output.WriteByte (0);
+
+        return output.ToArray ();
+      }
     }
 
     private static byte[] CreateClosePayload (ushort code)
@@ -554,9 +694,28 @@ namespace WebSocketSharp.Tests
     private static void WaitForProtocolClose (LoopbackServer server, string path, TcpClient client)
     {
       WaitUntil (
-        () => server.WebSocketServices[path].Sessions.Count == 0 && IsDisconnected (client),
+        () => server.WebSocketServices[path].Sessions.Count == 0 && IsDisconnectedAfterDrainingClose (client),
         "The server did not close and remove the protocol-error session."
       );
+    }
+
+    private static bool IsDisconnectedAfterDrainingClose (TcpClient client)
+    {
+      try {
+        if (client.Client.Available > 0) {
+          var frame = ReadServerFrame (client.GetStream ());
+
+          Assert.That (frame.Opcode, Is.EqualTo (OpcodeClose));
+        }
+      }
+      catch (IOException) {
+      }
+      catch (ObjectDisposedException) {
+      }
+      catch (SocketException) {
+      }
+
+      return IsDisconnected (client);
     }
 
     private static void WaitUntil (Func<bool> predicate, string message)
@@ -581,11 +740,26 @@ namespace WebSocketSharp.Tests
       bool mask
     )
     {
+      WriteClientFrame (stream, opcode, payload, fin, mask, false);
+    }
+
+    private static void WriteClientFrame (
+      NetworkStream stream,
+      int opcode,
+      byte[] payload,
+      bool fin,
+      bool mask,
+      bool rsv1
+    )
+    {
       var frame = new MemoryStream ();
       var firstByte = (byte) opcode;
 
       if (fin)
         firstByte |= 0x80;
+
+      if (rsv1)
+        firstByte |= 0x40;
 
       frame.WriteByte (firstByte);
 
