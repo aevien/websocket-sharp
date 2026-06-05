@@ -7,12 +7,12 @@ This fork is maintained for Unity/.NET 4.x usage while keeping the original
 
 Current release:
 
-- Tag: `v1.1.0`
-- Release: [websocket-sharp v1.1.0](https://github.com/aevien/websocket-sharp/releases/tag/v1.1.0)
+- Tag: `v1.2.0`
+- Release: [websocket-sharp v1.2.0](https://github.com/aevien/websocket-sharp/releases/tag/v1.2.0)
 - Target framework: `net472`
 - Assembly name: `websocket-sharp`
 - Assembly version: `1.0.2.32832` (kept for Unity binary compatibility)
-- File/product version: `1.1.0.0`
+- File/product version: `1.2.0.0`
 - WebGL: not supported by this managed socket implementation. Unity WebGL should
   continue to use the browser JavaScript WebSocket layer.
 
@@ -48,7 +48,7 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Repository stress suite: `8/8` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
-- Version metadata: assembly file/informational versions and DLL file/product versions all report `1.1.0.0`.
+- Version metadata: assembly file/informational versions and DLL file/product versions all report `1.2.0.0`.
 - Public API snapshot: exported public types, constructors, methods, properties, events, fields, and enum values are compared to a checked-in snapshot.
 - Unity/IL2CPP static scan: library sources are checked for known incompatible constructs such as delegate `BeginInvoke`/`EndInvoke`, runtime code generation, `Thread.Abort`, binary serialization, P/Invoke, runtime compilation, remoting, and dynamic assembly loading.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
@@ -106,8 +106,8 @@ GitHub Actions:
 
 Download the Unity release from the GitHub release page:
 
-- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.1.0/websocket-sharp.dll)
-- [websocket-sharp-v1.1.0-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.1.0/websocket-sharp-v1.1.0-unity-net472.zip)
+- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.2.0/websocket-sharp.dll)
+- [websocket-sharp-v1.2.0-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.2.0/websocket-sharp-v1.2.0-unity-net472.zip)
 
 ### Self Build ###
 
