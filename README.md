@@ -20,7 +20,7 @@ Recent fork changes include safer TLS certificate validation defaults, bounded
 client/server handshake timeouts including TLS handshakes, replacement of delegate `BeginInvoke` usage,
 async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
 stricter RFC 6455 frame validation, bounded receive/send resource limits,
-and partial-frame receive timeouts.
+partial-frame receive timeouts, and bounded HTTP/WebSocket handshake parsing.
 
 websocket-sharp supports:
 
@@ -42,8 +42,8 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `81/81` NUnit tests passed on `net472`.
-- Repository stress suite: `7/7` stress tests passed on `net472`.
+- Repository normal suite: `87/87` NUnit tests passed on `net472`.
+- Repository stress suite: `8/8` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
 - Version metadata: file version and product version both report `1.1.0.0`.
@@ -55,14 +55,16 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
 - Proxy path: HTTP CONNECT tunnel echo, silent proxy timeout, failed proxy response, 407 without credentials, and Basic proxy auth retry after a closed challenge connection are covered.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
+- Handshake parser limits: oversized handshake headers, too-long request/header lines, and header-count flooding are rejected before a WebSocket session starts.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
 - Resource lifecycle: repeated connect-storm and slow-handshake rounds return sessions to zero and do not show steady-state thread drift beyond the accepted bounds.
+- Resource abuse stress: 50 rejected handshake-flood clients and 25 fragment-limit clients complete without blocking a valid echo client or stranding sessions.
 - Close lifecycle: repeated `Close` / `CloseAsync` / `Dispose` calls, abrupt raw TCP disconnects, protocol-error close frames, and exception-throwing close/error handlers return server sessions to zero.
 - Protocol frames: payload boundaries `125`, `126`, and `66000` bytes round-trip; fragmented text can receive interleaved ping; reserved opcodes, unexpected RSV flags, invalid continuation sequences, close during fragmentation, and malformed frames close protocol-error sessions.
 - Close-frame validation: one-byte payloads, invalid/reserved close codes, invalid UTF-8 reasons, oversized control payloads, and non-minimal extended length encoding are covered.
 - Compression: permessage-deflate text echo, fragmented compressed input, corrupt compressed payloads, and compressed control-frame protocol errors are covered.
-- Payload limits: oversized single frames, fragmented messages over the assembled-message limit, and compressed messages that inflate past the configured limit close with `1009 TooBig` without delivering `OnMessage`.
+- Payload limits: oversized single frames, fragmented messages over the assembled-message limit, many small fragments over the assembled-message limit, and compressed messages that inflate past the configured limit close with `1009 TooBig` without delivering `OnMessage`.
 - Receive timeout: idle open connections are not closed by the timeout, but partial frame header/payload stalls close with protocol error without delivering `OnMessage`.
 
 ## Build ##
@@ -135,8 +137,14 @@ resource risks in old WebSocket stacks:
 - `HttpServer.HandshakeTimeout`: default `10 seconds`
 - `WebSocket.FrameReadTimeout`: default `10 seconds`
 
-Set these values before `Connect`, `ConnectAsync`, or server `Accept`. For
-server services, set the matching properties on `WebSocketBehavior` in
+The HTTP/WebSocket handshake parser also has fixed guardrails:
+
+- Maximum handshake header section: `8 KiB`
+- Maximum request/header line length: `2 KiB`
+- Maximum parsed header fields: `64`
+
+Set configurable runtime limits before `Connect`, `ConnectAsync`, or server
+`Accept`. For server services, set the matching properties on `WebSocketBehavior` in
 `AddWebSocketService`, for example:
 
 ```csharp

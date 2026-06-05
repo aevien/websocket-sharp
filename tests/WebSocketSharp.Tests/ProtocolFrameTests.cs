@@ -409,6 +409,42 @@ namespace WebSocketSharp.Tests
     }
 
     [Test]
+    public void ManySmallFragmentsExceedingConfiguredLimitReturnsTooBigCloseWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count", s => s.MaxMessagePayloadLength = 8))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        var stream = client.GetStream ();
+
+        for (var i = 0; i < 9; i++) {
+          var opcode = i == 0 ? OpcodeText : OpcodeContinuation;
+
+          WriteClientFrame (stream, opcode, Encoding.UTF8.GetBytes ("a"), false, true);
+        }
+
+        Assert.That (ReadServerCloseCode (stream), Is.EqualTo ((ushort) CloseStatusCode.TooBig));
+        WaitForProtocolClose (server, "/count", client);
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void AbruptDisconnectDuringFragmentedMessageReleasesSessionWithoutDeliveringMessage ()
+    {
+      using (var server = StartCountingServer ("/count"))
+      using (var client = ConnectRawWebSocket (server.Port, "/count")) {
+        WriteClientFrame (client.GetStream (), OpcodeText, Encoding.UTF8.GetBytes ("partial"), false, true);
+
+        client.Close ();
+
+        WaitUntil (
+          () => server.WebSocketServices["/count"].Sessions.Count == 0,
+          "The server kept a session after an abrupt fragmented-message disconnect."
+        );
+        Assert.That (CountingBehavior.MessageCount, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
     public void CompressedMessageExceedingConfiguredLimitReturnsTooBigCloseWithoutDeliveringMessage ()
     {
       using (var server = StartCountingServer ("/count", s => s.MaxMessagePayloadLength = 64)) {

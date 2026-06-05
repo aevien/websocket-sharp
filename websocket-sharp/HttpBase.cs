@@ -42,7 +42,9 @@ namespace WebSocketSharp
     #region Private Fields
 
     private NameValueCollection _headers;
+    private static readonly int _maxMessageHeaderCount;
     private static readonly int _maxMessageHeaderLength;
+    private static readonly int _maxMessageHeaderLineLength;
     private string              _messageBody;
     private byte[]              _messageBodyData;
     private Version             _version;
@@ -61,7 +63,9 @@ namespace WebSocketSharp
 
     static HttpBase ()
     {
+      _maxMessageHeaderCount = 64;
       _maxMessageHeaderLength = 8192;
+      _maxMessageHeaderLineLength = 2048;
 
       CrLf = "\r\n";
       CrLfHt = "\r\n\t";
@@ -215,11 +219,56 @@ namespace WebSocketSharp
       while (!end);
 
       var bytes = buff.ToArray ();
+      var header = Encoding.UTF8.GetString (bytes);
 
-      return Encoding.UTF8.GetString (bytes)
-             .Replace (CrLfSp, " ")
-             .Replace (CrLfHt, " ")
-             .Split (new[] { CrLf }, StringSplitOptions.RemoveEmptyEntries);
+      validateMessageHeaderLines (header);
+
+      var messageHeader = header
+                          .Replace (CrLfSp, " ")
+                          .Replace (CrLfHt, " ")
+                          .Split (
+                            new[] { CrLf },
+                            StringSplitOptions.RemoveEmptyEntries
+                          );
+
+      validateMessageHeader (messageHeader);
+
+      return messageHeader;
+    }
+
+    private static void validateMessageHeader (string[] messageHeader)
+    {
+      if (messageHeader.Length == 0)
+        return;
+
+      if (messageHeader.Length - 1 > _maxMessageHeaderCount) {
+        var msg = "The number of headers is greater than the max count.";
+
+        throw new InvalidOperationException (msg);
+      }
+
+      foreach (var line in messageHeader) {
+        if (line.Length <= _maxMessageHeaderLineLength)
+          continue;
+
+        var msg = "The length of a header line is greater than the max length.";
+
+        throw new InvalidOperationException (msg);
+      }
+    }
+
+    private static void validateMessageHeaderLines (string header)
+    {
+      var lines = header.Split (new[] { CrLf }, StringSplitOptions.None);
+
+      foreach (var line in lines) {
+        if (line.Length <= _maxMessageHeaderLineLength)
+          continue;
+
+        var msg = "The length of a header line is greater than the max length.";
+
+        throw new InvalidOperationException (msg);
+      }
     }
 
     #endregion
