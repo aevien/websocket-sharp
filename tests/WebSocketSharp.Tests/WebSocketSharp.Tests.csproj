@@ -15,4 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\websocket-sharp\websocket-sharp.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PublicApiSnapshot.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

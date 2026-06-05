@@ -21,6 +21,8 @@ client/server handshake timeouts including TLS handshakes, replacement of delega
 async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
 stricter RFC 6455 frame validation, bounded receive/send resource limits,
 partial-frame receive timeouts, and bounded HTTP/WebSocket handshake parsing.
+The test suite also guards the public API surface and Unity/IL2CPP compatibility
+against accidental regressions.
 
 websocket-sharp supports:
 
@@ -42,11 +44,13 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `87/87` NUnit tests passed on `net472`.
+- Repository normal suite: `94/94` NUnit tests passed on `net472`.
 - Repository stress suite: `8/8` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
-- Version metadata: file version and product version both report `1.1.0.0`.
+- Version metadata: assembly file/informational versions and DLL file/product versions all report `1.1.0.0`.
+- Public API snapshot: exported public types, constructors, methods, properties, events, fields, and enum values are compared to a checked-in snapshot.
+- Unity/IL2CPP static scan: library sources are checked for known incompatible constructs such as delegate `BeginInvoke`/`EndInvoke`, runtime code generation, `Thread.Abort`, binary serialization, P/Invoke, runtime compilation, remoting, and dynamic assembly loading.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
 - TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
 - TLS handshake timeout: silent TLS peers are bounded by client `ConnectionTimeout`, secure `WebSocketServer.HandshakeTimeout`, and secure `HttpServer.HandshakeTimeout`.
@@ -56,6 +60,7 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Proxy path: HTTP CONNECT tunnel echo, silent proxy timeout, failed proxy response, 407 without credentials, and Basic proxy auth retry after a closed challenge connection are covered.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
 - Handshake parser limits: oversized handshake headers, too-long request/header lines, and header-count flooding are rejected before a WebSocket session starts.
+- Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
 - Resource lifecycle: repeated connect-storm and slow-handshake rounds return sessions to zero and do not show steady-state thread drift beyond the accepted bounds.

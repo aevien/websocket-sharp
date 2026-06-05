@@ -1,0 +1,817 @@
+type enum WebSocketSharp.ByteOrder
+  field System.Int32 value__
+  field static WebSocketSharp.ByteOrder Big
+  field static WebSocketSharp.ByteOrder Little
+  enum Big = 1
+  enum Little = 0
+type class WebSocketSharp.CloseEventArgs
+  property System.Boolean WasClean get;
+  property System.String Reason get;
+  property System.UInt16 Code get;
+type enum WebSocketSharp.CloseStatusCode
+  field System.UInt16 value__
+  field static WebSocketSharp.CloseStatusCode Abnormal
+  field static WebSocketSharp.CloseStatusCode Away
+  field static WebSocketSharp.CloseStatusCode InvalidData
+  field static WebSocketSharp.CloseStatusCode MandatoryExtension
+  field static WebSocketSharp.CloseStatusCode NoStatus
+  field static WebSocketSharp.CloseStatusCode Normal
+  field static WebSocketSharp.CloseStatusCode PolicyViolation
+  field static WebSocketSharp.CloseStatusCode ProtocolError
+  field static WebSocketSharp.CloseStatusCode ServerError
+  field static WebSocketSharp.CloseStatusCode TlsHandshakeFailure
+  field static WebSocketSharp.CloseStatusCode TooBig
+  field static WebSocketSharp.CloseStatusCode Undefined
+  field static WebSocketSharp.CloseStatusCode UnsupportedData
+  enum Abnormal = 1006
+  enum Away = 1001
+  enum InvalidData = 1007
+  enum MandatoryExtension = 1010
+  enum NoStatus = 1005
+  enum Normal = 1000
+  enum PolicyViolation = 1008
+  enum ProtocolError = 1002
+  enum ServerError = 1011
+  enum TlsHandshakeFailure = 1015
+  enum TooBig = 1009
+  enum Undefined = 1004
+  enum UnsupportedData = 1003
+type enum WebSocketSharp.CompressionMethod
+  field System.Byte value__
+  field static WebSocketSharp.CompressionMethod Deflate
+  field static WebSocketSharp.CompressionMethod None
+  enum Deflate = 1
+  enum None = 0
+type class WebSocketSharp.ErrorEventArgs
+  property System.Exception Exception get;
+  property System.String Message get;
+type static-class WebSocketSharp.Ext
+  method System.Boolean IsCloseStatusCode(System.UInt16)
+  method System.Boolean IsEnclosedIn(System.String,System.Char)
+  method System.Boolean IsHostOrder(WebSocketSharp.ByteOrder)
+  method System.Boolean IsLocal(System.Net.IPAddress)
+  method System.Boolean IsNullOrEmpty(System.String)
+  method System.Byte[] ToHostOrder(System.Byte[],WebSocketSharp.ByteOrder)
+  method System.String GetDescription(WebSocketSharp.Net.HttpStatusCode)
+  method System.String GetStatusDescription(System.Int32)
+  method System.String ToString<T>(T[],System.String)
+  method System.Uri ToUri(System.String)
+  method System.Void Times(System.Int32,System.Action<System.Int32>)
+  method System.Void Times(System.Int64,System.Action<System.Int64>)
+  method T[] SubArray<T>(T[],System.Int32,System.Int32)
+  method T[] SubArray<T>(T[],System.Int64,System.Int64)
+type class WebSocketSharp.LogData
+  property System.DateTime Date get;
+  property System.Diagnostics.StackFrame Caller get;
+  property System.String Message get;
+  property WebSocketSharp.LogLevel Level get;
+  method System.String ToString()
+type enum WebSocketSharp.LogLevel
+  field System.Int32 value__
+  field static WebSocketSharp.LogLevel Debug
+  field static WebSocketSharp.LogLevel Error
+  field static WebSocketSharp.LogLevel Fatal
+  field static WebSocketSharp.LogLevel Info
+  field static WebSocketSharp.LogLevel None
+  field static WebSocketSharp.LogLevel Trace
+  field static WebSocketSharp.LogLevel Warn
+  enum Debug = 1
+  enum Error = 4
+  enum Fatal = 5
+  enum Info = 2
+  enum None = 6
+  enum Trace = 0
+  enum Warn = 3
+type class WebSocketSharp.Logger
+  ctor .ctor()
+  ctor .ctor(WebSocketSharp.LogLevel)
+  ctor .ctor(WebSocketSharp.LogLevel,System.String,System.Action<WebSocketSharp.LogData,System.String>)
+  property System.Action<WebSocketSharp.LogData,System.String> Output get;set;
+  property System.String File get;set;
+  property WebSocketSharp.LogLevel Level get;set;
+  method System.Void Debug(System.String)
+  method System.Void Error(System.String)
+  method System.Void Fatal(System.String)
+  method System.Void Info(System.String)
+  method System.Void Trace(System.String)
+  method System.Void Warn(System.String)
+type class WebSocketSharp.MessageEventArgs
+  property System.Boolean IsBinary get;
+  property System.Boolean IsPing get;
+  property System.Boolean IsText get;
+  property System.Byte[] RawData get;
+  property System.String Data get;
+type enum WebSocketSharp.Net.AuthenticationSchemes
+  field System.Int32 value__
+  field static WebSocketSharp.Net.AuthenticationSchemes Anonymous
+  field static WebSocketSharp.Net.AuthenticationSchemes Basic
+  field static WebSocketSharp.Net.AuthenticationSchemes Digest
+  field static WebSocketSharp.Net.AuthenticationSchemes None
+  enum Anonymous = 32768
+  enum Basic = 8
+  enum Digest = 1
+  enum None = 0
+type class WebSocketSharp.Net.ClientSslConfiguration
+  ctor .ctor(System.String)
+  ctor .ctor(WebSocketSharp.Net.ClientSslConfiguration)
+  property System.Boolean CheckCertificateRevocation get;set;
+  property System.Net.Security.LocalCertificateSelectionCallback ClientCertificateSelectionCallback get;set;
+  property System.Net.Security.RemoteCertificateValidationCallback ServerCertificateValidationCallback get;set;
+  property System.Security.Authentication.SslProtocols EnabledSslProtocols get;set;
+  property System.Security.Cryptography.X509Certificates.X509CertificateCollection ClientCertificates get;set;
+  property System.String TargetHost get;set;
+type class WebSocketSharp.Net.Cookie
+  ctor .ctor(System.String,System.String)
+  ctor .ctor(System.String,System.String,System.String)
+  ctor .ctor(System.String,System.String,System.String,System.String)
+  property System.Boolean Discard get;set;
+  property System.Boolean Expired get;set;
+  property System.Boolean HttpOnly get;set;
+  property System.Boolean Secure get;set;
+  property System.DateTime Expires get;set;
+  property System.DateTime TimeStamp get;
+  property System.Int32 Version get;set;
+  property System.String Comment get;set;
+  property System.String Domain get;set;
+  property System.String Name get;set;
+  property System.String Path get;set;
+  property System.String Port get;set;
+  property System.String Value get;set;
+  property System.Uri CommentUri get;set;
+  method System.Boolean Equals(System.Object)
+  method System.Int32 GetHashCode()
+  method System.String ToString()
+type class WebSocketSharp.Net.CookieCollection
+  ctor .ctor()
+  property System.Boolean IsReadOnly get;
+  property System.Boolean IsSynchronized get;
+  property System.Int32 Count get;
+  property System.Object SyncRoot get;
+  property WebSocketSharp.Net.Cookie Item[System.Int32] get;
+  property WebSocketSharp.Net.Cookie Item[System.String] get;
+  method System.Boolean Contains(WebSocketSharp.Net.Cookie)
+  method System.Boolean Remove(WebSocketSharp.Net.Cookie)
+  method System.Collections.Generic.IEnumerator<WebSocketSharp.Net.Cookie> GetEnumerator()
+  method System.Void Add(WebSocketSharp.Net.Cookie)
+  method System.Void Add(WebSocketSharp.Net.CookieCollection)
+  method System.Void Clear()
+  method System.Void CopyTo(WebSocketSharp.Net.Cookie[],System.Int32)
+type class WebSocketSharp.Net.CookieException
+  ctor .ctor()
+  method System.Void GetObjectData(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)
+type class WebSocketSharp.Net.HttpBasicIdentity
+  property System.String Password get;
+type class WebSocketSharp.Net.HttpDigestIdentity
+  property System.String Algorithm get;
+  property System.String Cnonce get;
+  property System.String Nc get;
+  property System.String Nonce get;
+  property System.String Opaque get;
+  property System.String Qop get;
+  property System.String Realm get;
+  property System.String Response get;
+  property System.String Uri get;
+type class WebSocketSharp.Net.HttpListener
+  ctor .ctor()
+  property System.Boolean IgnoreWriteExceptions get;set;
+  property System.Boolean IsListening get;
+  property System.Boolean IsSupported get;
+  property System.Boolean UnsafeConnectionNtlmAuthentication get;set;
+  property System.Func<System.Security.Principal.IIdentity,WebSocketSharp.Net.NetworkCredential> UserCredentialsFinder get;set;
+  property System.Func<WebSocketSharp.Net.HttpListenerRequest,WebSocketSharp.Net.AuthenticationSchemes> AuthenticationSchemeSelector get;set;
+  property System.String CertificateFolderPath get;set;
+  property System.String Realm get;set;
+  property WebSocketSharp.Logger Log get;
+  property WebSocketSharp.Net.AuthenticationSchemes AuthenticationSchemes get;set;
+  property WebSocketSharp.Net.HttpListenerPrefixCollection Prefixes get;
+  property WebSocketSharp.Net.ServerSslConfiguration SslConfiguration get;
+  method System.IAsyncResult BeginGetContext(System.AsyncCallback,System.Object)
+  method System.Void Abort()
+  method System.Void Close()
+  method System.Void Start()
+  method System.Void Stop()
+  method WebSocketSharp.Net.HttpListenerContext EndGetContext(System.IAsyncResult)
+  method WebSocketSharp.Net.HttpListenerContext GetContext()
+type class WebSocketSharp.Net.HttpListenerContext
+  property System.Security.Principal.IPrincipal User get;
+  property WebSocketSharp.Net.HttpListenerRequest Request get;
+  property WebSocketSharp.Net.HttpListenerResponse Response get;
+  method WebSocketSharp.Net.WebSockets.HttpListenerWebSocketContext AcceptWebSocket(System.String)
+  method WebSocketSharp.Net.WebSockets.HttpListenerWebSocketContext AcceptWebSocket(System.String,System.Action<WebSocketSharp.WebSocket>)
+type class WebSocketSharp.Net.HttpListenerException
+  ctor .ctor()
+  ctor .ctor(System.Int32)
+  ctor .ctor(System.Int32,System.String)
+  property System.Int32 ErrorCode get;
+type class WebSocketSharp.Net.HttpListenerPrefixCollection
+  property System.Boolean IsReadOnly get;
+  property System.Boolean IsSynchronized get;
+  property System.Int32 Count get;
+  method System.Boolean Contains(System.String)
+  method System.Boolean Remove(System.String)
+  method System.Collections.Generic.IEnumerator<System.String> GetEnumerator()
+  method System.Void Add(System.String)
+  method System.Void Clear()
+  method System.Void CopyTo(System.String[],System.Int32)
+type class WebSocketSharp.Net.HttpListenerRequest
+  property System.Boolean HasEntityBody get;
+  property System.Boolean IsAuthenticated get;
+  property System.Boolean IsLocal get;
+  property System.Boolean IsSecureConnection get;
+  property System.Boolean IsWebSocketRequest get;
+  property System.Boolean KeepAlive get;
+  property System.Collections.Specialized.NameValueCollection Headers get;
+  property System.Collections.Specialized.NameValueCollection QueryString get;
+  property System.Guid RequestTraceIdentifier get;
+  property System.IO.Stream InputStream get;
+  property System.Int32 ClientCertificateError get;
+  property System.Int64 ContentLength64 get;
+  property System.Net.IPEndPoint LocalEndPoint get;
+  property System.Net.IPEndPoint RemoteEndPoint get;
+  property System.String ContentType get;
+  property System.String HttpMethod get;
+  property System.String RawUrl get;
+  property System.String UserAgent get;
+  property System.String UserHostAddress get;
+  property System.String UserHostName get;
+  property System.String[] AcceptTypes get;
+  property System.String[] UserLanguages get;
+  property System.Text.Encoding ContentEncoding get;
+  property System.Uri Url get;
+  property System.Uri UrlReferrer get;
+  property System.Version ProtocolVersion get;
+  property WebSocketSharp.Net.CookieCollection Cookies get;
+  method System.IAsyncResult BeginGetClientCertificate(System.AsyncCallback,System.Object)
+  method System.Security.Cryptography.X509Certificates.X509Certificate2 EndGetClientCertificate(System.IAsyncResult)
+  method System.Security.Cryptography.X509Certificates.X509Certificate2 GetClientCertificate()
+  method System.String ToString()
+type class WebSocketSharp.Net.HttpListenerResponse
+  property System.Boolean KeepAlive get;set;
+  property System.Boolean SendChunked get;set;
+  property System.IO.Stream OutputStream get;
+  property System.Int32 StatusCode get;set;
+  property System.Int64 ContentLength64 get;set;
+  property System.String ContentType get;set;
+  property System.String RedirectLocation get;set;
+  property System.String StatusDescription get;set;
+  property System.Text.Encoding ContentEncoding get;set;
+  property System.Version ProtocolVersion get;
+  property WebSocketSharp.Net.CookieCollection Cookies get;set;
+  property WebSocketSharp.Net.WebHeaderCollection Headers get;set;
+  method System.Void Abort()
+  method System.Void AppendCookie(WebSocketSharp.Net.Cookie)
+  method System.Void AppendHeader(System.String,System.String)
+  method System.Void Close()
+  method System.Void Close(System.Byte[],System.Boolean)
+  method System.Void CopyFrom(WebSocketSharp.Net.HttpListenerResponse)
+  method System.Void Redirect(System.String)
+  method System.Void SetCookie(WebSocketSharp.Net.Cookie)
+  method System.Void SetHeader(System.String,System.String)
+type enum WebSocketSharp.Net.HttpRequestHeader
+  field System.Int32 value__
+  field static WebSocketSharp.Net.HttpRequestHeader Accept
+  field static WebSocketSharp.Net.HttpRequestHeader AcceptCharset
+  field static WebSocketSharp.Net.HttpRequestHeader AcceptEncoding
+  field static WebSocketSharp.Net.HttpRequestHeader AcceptLanguage
+  field static WebSocketSharp.Net.HttpRequestHeader Allow
+  field static WebSocketSharp.Net.HttpRequestHeader Authorization
+  field static WebSocketSharp.Net.HttpRequestHeader CacheControl
+  field static WebSocketSharp.Net.HttpRequestHeader Connection
+  field static WebSocketSharp.Net.HttpRequestHeader ContentEncoding
+  field static WebSocketSharp.Net.HttpRequestHeader ContentLanguage
+  field static WebSocketSharp.Net.HttpRequestHeader ContentLength
+  field static WebSocketSharp.Net.HttpRequestHeader ContentLocation
+  field static WebSocketSharp.Net.HttpRequestHeader ContentMd5
+  field static WebSocketSharp.Net.HttpRequestHeader ContentRange
+  field static WebSocketSharp.Net.HttpRequestHeader ContentType
+  field static WebSocketSharp.Net.HttpRequestHeader Cookie
+  field static WebSocketSharp.Net.HttpRequestHeader Date
+  field static WebSocketSharp.Net.HttpRequestHeader Expect
+  field static WebSocketSharp.Net.HttpRequestHeader Expires
+  field static WebSocketSharp.Net.HttpRequestHeader From
+  field static WebSocketSharp.Net.HttpRequestHeader Host
+  field static WebSocketSharp.Net.HttpRequestHeader IfMatch
+  field static WebSocketSharp.Net.HttpRequestHeader IfModifiedSince
+  field static WebSocketSharp.Net.HttpRequestHeader IfNoneMatch
+  field static WebSocketSharp.Net.HttpRequestHeader IfRange
+  field static WebSocketSharp.Net.HttpRequestHeader IfUnmodifiedSince
+  field static WebSocketSharp.Net.HttpRequestHeader KeepAlive
+  field static WebSocketSharp.Net.HttpRequestHeader LastModified
+  field static WebSocketSharp.Net.HttpRequestHeader MaxForwards
+  field static WebSocketSharp.Net.HttpRequestHeader Pragma
+  field static WebSocketSharp.Net.HttpRequestHeader ProxyAuthorization
+  field static WebSocketSharp.Net.HttpRequestHeader Range
+  field static WebSocketSharp.Net.HttpRequestHeader Referer
+  field static WebSocketSharp.Net.HttpRequestHeader SecWebSocketExtensions
+  field static WebSocketSharp.Net.HttpRequestHeader SecWebSocketKey
+  field static WebSocketSharp.Net.HttpRequestHeader SecWebSocketProtocol
+  field static WebSocketSharp.Net.HttpRequestHeader SecWebSocketVersion
+  field static WebSocketSharp.Net.HttpRequestHeader Te
+  field static WebSocketSharp.Net.HttpRequestHeader Trailer
+  field static WebSocketSharp.Net.HttpRequestHeader TransferEncoding
+  field static WebSocketSharp.Net.HttpRequestHeader Translate
+  field static WebSocketSharp.Net.HttpRequestHeader Upgrade
+  field static WebSocketSharp.Net.HttpRequestHeader UserAgent
+  field static WebSocketSharp.Net.HttpRequestHeader Via
+  field static WebSocketSharp.Net.HttpRequestHeader Warning
+  enum Accept = 20
+  enum AcceptCharset = 21
+  enum AcceptEncoding = 22
+  enum AcceptLanguage = 23
+  enum Allow = 10
+  enum Authorization = 24
+  enum CacheControl = 0
+  enum Connection = 1
+  enum ContentEncoding = 13
+  enum ContentLanguage = 14
+  enum ContentLength = 11
+  enum ContentLocation = 15
+  enum ContentMd5 = 16
+  enum ContentRange = 17
+  enum ContentType = 12
+  enum Cookie = 25
+  enum Date = 2
+  enum Expect = 26
+  enum Expires = 18
+  enum From = 27
+  enum Host = 28
+  enum IfMatch = 29
+  enum IfModifiedSince = 30
+  enum IfNoneMatch = 31
+  enum IfRange = 32
+  enum IfUnmodifiedSince = 33
+  enum KeepAlive = 3
+  enum LastModified = 19
+  enum MaxForwards = 34
+  enum Pragma = 4
+  enum ProxyAuthorization = 35
+  enum Range = 37
+  enum Referer = 36
+  enum SecWebSocketExtensions = 42
+  enum SecWebSocketKey = 41
+  enum SecWebSocketProtocol = 43
+  enum SecWebSocketVersion = 44
+  enum Te = 38
+  enum Trailer = 5
+  enum TransferEncoding = 6
+  enum Translate = 39
+  enum Upgrade = 7
+  enum UserAgent = 40
+  enum Via = 8
+  enum Warning = 9
+type enum WebSocketSharp.Net.HttpResponseHeader
+  field System.Int32 value__
+  field static WebSocketSharp.Net.HttpResponseHeader AcceptRanges
+  field static WebSocketSharp.Net.HttpResponseHeader Age
+  field static WebSocketSharp.Net.HttpResponseHeader Allow
+  field static WebSocketSharp.Net.HttpResponseHeader CacheControl
+  field static WebSocketSharp.Net.HttpResponseHeader Connection
+  field static WebSocketSharp.Net.HttpResponseHeader ContentEncoding
+  field static WebSocketSharp.Net.HttpResponseHeader ContentLanguage
+  field static WebSocketSharp.Net.HttpResponseHeader ContentLength
+  field static WebSocketSharp.Net.HttpResponseHeader ContentLocation
+  field static WebSocketSharp.Net.HttpResponseHeader ContentMd5
+  field static WebSocketSharp.Net.HttpResponseHeader ContentRange
+  field static WebSocketSharp.Net.HttpResponseHeader ContentType
+  field static WebSocketSharp.Net.HttpResponseHeader Date
+  field static WebSocketSharp.Net.HttpResponseHeader ETag
+  field static WebSocketSharp.Net.HttpResponseHeader Expires
+  field static WebSocketSharp.Net.HttpResponseHeader KeepAlive
+  field static WebSocketSharp.Net.HttpResponseHeader LastModified
+  field static WebSocketSharp.Net.HttpResponseHeader Location
+  field static WebSocketSharp.Net.HttpResponseHeader Pragma
+  field static WebSocketSharp.Net.HttpResponseHeader ProxyAuthenticate
+  field static WebSocketSharp.Net.HttpResponseHeader RetryAfter
+  field static WebSocketSharp.Net.HttpResponseHeader SecWebSocketAccept
+  field static WebSocketSharp.Net.HttpResponseHeader SecWebSocketExtensions
+  field static WebSocketSharp.Net.HttpResponseHeader SecWebSocketProtocol
+  field static WebSocketSharp.Net.HttpResponseHeader SecWebSocketVersion
+  field static WebSocketSharp.Net.HttpResponseHeader Server
+  field static WebSocketSharp.Net.HttpResponseHeader SetCookie
+  field static WebSocketSharp.Net.HttpResponseHeader Trailer
+  field static WebSocketSharp.Net.HttpResponseHeader TransferEncoding
+  field static WebSocketSharp.Net.HttpResponseHeader Upgrade
+  field static WebSocketSharp.Net.HttpResponseHeader Vary
+  field static WebSocketSharp.Net.HttpResponseHeader Via
+  field static WebSocketSharp.Net.HttpResponseHeader Warning
+  field static WebSocketSharp.Net.HttpResponseHeader WwwAuthenticate
+  enum AcceptRanges = 20
+  enum Age = 21
+  enum Allow = 10
+  enum CacheControl = 0
+  enum Connection = 1
+  enum ContentEncoding = 13
+  enum ContentLanguage = 14
+  enum ContentLength = 11
+  enum ContentLocation = 15
+  enum ContentMd5 = 16
+  enum ContentRange = 17
+  enum ContentType = 12
+  enum Date = 2
+  enum ETag = 22
+  enum Expires = 18
+  enum KeepAlive = 3
+  enum LastModified = 19
+  enum Location = 23
+  enum Pragma = 4
+  enum ProxyAuthenticate = 24
+  enum RetryAfter = 25
+  enum SecWebSocketAccept = 31
+  enum SecWebSocketExtensions = 30
+  enum SecWebSocketProtocol = 32
+  enum SecWebSocketVersion = 33
+  enum Server = 26
+  enum SetCookie = 27
+  enum Trailer = 5
+  enum TransferEncoding = 6
+  enum Upgrade = 7
+  enum Vary = 28
+  enum Via = 8
+  enum Warning = 9
+  enum WwwAuthenticate = 29
+type enum WebSocketSharp.Net.HttpStatusCode
+  field System.Int32 value__
+  field static WebSocketSharp.Net.HttpStatusCode Accepted
+  field static WebSocketSharp.Net.HttpStatusCode Ambiguous
+  field static WebSocketSharp.Net.HttpStatusCode BadGateway
+  field static WebSocketSharp.Net.HttpStatusCode BadRequest
+  field static WebSocketSharp.Net.HttpStatusCode Conflict
+  field static WebSocketSharp.Net.HttpStatusCode Continue
+  field static WebSocketSharp.Net.HttpStatusCode Created
+  field static WebSocketSharp.Net.HttpStatusCode ExpectationFailed
+  field static WebSocketSharp.Net.HttpStatusCode Forbidden
+  field static WebSocketSharp.Net.HttpStatusCode Found
+  field static WebSocketSharp.Net.HttpStatusCode GatewayTimeout
+  field static WebSocketSharp.Net.HttpStatusCode Gone
+  field static WebSocketSharp.Net.HttpStatusCode HttpVersionNotSupported
+  field static WebSocketSharp.Net.HttpStatusCode InternalServerError
+  field static WebSocketSharp.Net.HttpStatusCode LengthRequired
+  field static WebSocketSharp.Net.HttpStatusCode MethodNotAllowed
+  field static WebSocketSharp.Net.HttpStatusCode Moved
+  field static WebSocketSharp.Net.HttpStatusCode MovedPermanently
+  field static WebSocketSharp.Net.HttpStatusCode MultipleChoices
+  field static WebSocketSharp.Net.HttpStatusCode NoContent
+  field static WebSocketSharp.Net.HttpStatusCode NonAuthoritativeInformation
+  field static WebSocketSharp.Net.HttpStatusCode NotAcceptable
+  field static WebSocketSharp.Net.HttpStatusCode NotFound
+  field static WebSocketSharp.Net.HttpStatusCode NotImplemented
+  field static WebSocketSharp.Net.HttpStatusCode NotModified
+  field static WebSocketSharp.Net.HttpStatusCode OK
+  field static WebSocketSharp.Net.HttpStatusCode PartialContent
+  field static WebSocketSharp.Net.HttpStatusCode PaymentRequired
+  field static WebSocketSharp.Net.HttpStatusCode PreconditionFailed
+  field static WebSocketSharp.Net.HttpStatusCode ProxyAuthenticationRequired
+  field static WebSocketSharp.Net.HttpStatusCode Redirect
+  field static WebSocketSharp.Net.HttpStatusCode RedirectKeepVerb
+  field static WebSocketSharp.Net.HttpStatusCode RedirectMethod
+  field static WebSocketSharp.Net.HttpStatusCode RequestEntityTooLarge
+  field static WebSocketSharp.Net.HttpStatusCode RequestTimeout
+  field static WebSocketSharp.Net.HttpStatusCode RequestUriTooLong
+  field static WebSocketSharp.Net.HttpStatusCode RequestedRangeNotSatisfiable
+  field static WebSocketSharp.Net.HttpStatusCode ResetContent
+  field static WebSocketSharp.Net.HttpStatusCode SeeOther
+  field static WebSocketSharp.Net.HttpStatusCode ServiceUnavailable
+  field static WebSocketSharp.Net.HttpStatusCode SwitchingProtocols
+  field static WebSocketSharp.Net.HttpStatusCode TemporaryRedirect
+  field static WebSocketSharp.Net.HttpStatusCode Unauthorized
+  field static WebSocketSharp.Net.HttpStatusCode UnsupportedMediaType
+  field static WebSocketSharp.Net.HttpStatusCode Unused
+  field static WebSocketSharp.Net.HttpStatusCode UseProxy
+  enum Accepted = 202
+  enum Ambiguous = 300
+  enum BadGateway = 502
+  enum BadRequest = 400
+  enum Conflict = 409
+  enum Continue = 100
+  enum Created = 201
+  enum ExpectationFailed = 417
+  enum Forbidden = 403
+  enum Found = 302
+  enum GatewayTimeout = 504
+  enum Gone = 410
+  enum HttpVersionNotSupported = 505
+  enum InternalServerError = 500
+  enum LengthRequired = 411
+  enum MethodNotAllowed = 405
+  enum Moved = 301
+  enum MovedPermanently = 301
+  enum MultipleChoices = 300
+  enum NoContent = 204
+  enum NonAuthoritativeInformation = 203
+  enum NotAcceptable = 406
+  enum NotFound = 404
+  enum NotImplemented = 501
+  enum NotModified = 304
+  enum OK = 200
+  enum PartialContent = 206
+  enum PaymentRequired = 402
+  enum PreconditionFailed = 412
+  enum ProxyAuthenticationRequired = 407
+  enum Redirect = 302
+  enum RedirectKeepVerb = 307
+  enum RedirectMethod = 303
+  enum RequestEntityTooLarge = 413
+  enum RequestTimeout = 408
+  enum RequestUriTooLong = 414
+  enum RequestedRangeNotSatisfiable = 416
+  enum ResetContent = 205
+  enum SeeOther = 303
+  enum ServiceUnavailable = 503
+  enum SwitchingProtocols = 101
+  enum TemporaryRedirect = 307
+  enum Unauthorized = 401
+  enum UnsupportedMediaType = 415
+  enum Unused = 306
+  enum UseProxy = 305
+type class WebSocketSharp.Net.HttpVersion
+  field static System.Version Version10
+  field static System.Version Version11
+  ctor .ctor()
+type class WebSocketSharp.Net.NetworkCredential
+  ctor .ctor(System.String,System.String)
+  ctor .ctor(System.String,System.String,System.String,params System.String[])
+  property System.String Domain get;set;
+  property System.String Password get;set;
+  property System.String Username get;set;
+  property System.String[] Roles get;set;
+type class WebSocketSharp.Net.ServerSslConfiguration
+  ctor .ctor()
+  ctor .ctor(WebSocketSharp.Net.ServerSslConfiguration)
+  property System.Boolean CheckCertificateRevocation get;set;
+  property System.Boolean ClientCertificateRequired get;set;
+  property System.Net.Security.RemoteCertificateValidationCallback ClientCertificateValidationCallback get;set;
+  property System.Security.Authentication.SslProtocols EnabledSslProtocols get;set;
+  property System.Security.Cryptography.X509Certificates.X509Certificate2 ServerCertificate get;set;
+type class WebSocketSharp.Net.WebHeaderCollection
+  ctor .ctor()
+  property System.Collections.Specialized.NameObjectCollectionBase+KeysCollection Keys get;
+  property System.Int32 Count get;
+  property System.String Item[WebSocketSharp.Net.HttpRequestHeader] get;set;
+  property System.String Item[WebSocketSharp.Net.HttpResponseHeader] get;set;
+  property System.String[] AllKeys get;
+  method System.Boolean IsRestricted(System.String)
+  method System.Boolean IsRestricted(System.String,System.Boolean)
+  method System.Byte[] ToByteArray()
+  method System.Collections.IEnumerator GetEnumerator()
+  method System.String Get(System.Int32)
+  method System.String Get(System.String)
+  method System.String GetKey(System.Int32)
+  method System.String ToString()
+  method System.String[] GetValues(System.Int32)
+  method System.String[] GetValues(System.String)
+  method System.Void Add(System.String)
+  method System.Void Add(System.String,System.String)
+  method System.Void Add(WebSocketSharp.Net.HttpRequestHeader,System.String)
+  method System.Void Add(WebSocketSharp.Net.HttpResponseHeader,System.String)
+  method System.Void Clear()
+  method System.Void GetObjectData(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)
+  method System.Void OnDeserialization(System.Object)
+  method System.Void Remove(System.String)
+  method System.Void Remove(WebSocketSharp.Net.HttpRequestHeader)
+  method System.Void Remove(WebSocketSharp.Net.HttpResponseHeader)
+  method System.Void Set(System.String,System.String)
+  method System.Void Set(WebSocketSharp.Net.HttpRequestHeader,System.String)
+  method System.Void Set(WebSocketSharp.Net.HttpResponseHeader,System.String)
+type class WebSocketSharp.Net.WebSockets.HttpListenerWebSocketContext
+  property System.Boolean IsAuthenticated get;
+  property System.Boolean IsLocal get;
+  property System.Boolean IsSecureConnection get;
+  property System.Boolean IsWebSocketRequest get;
+  property System.Collections.Generic.IEnumerable<System.String> SecWebSocketProtocols get;
+  property System.Collections.Specialized.NameValueCollection Headers get;
+  property System.Collections.Specialized.NameValueCollection QueryString get;
+  property System.Net.IPEndPoint ServerEndPoint get;
+  property System.Net.IPEndPoint UserEndPoint get;
+  property System.Security.Principal.IPrincipal User get;
+  property System.String Host get;
+  property System.String Origin get;
+  property System.String SecWebSocketKey get;
+  property System.String SecWebSocketVersion get;
+  property System.Uri RequestUri get;
+  property WebSocketSharp.Net.CookieCollection CookieCollection get;
+  property WebSocketSharp.WebSocket WebSocket get;
+  method System.String ToString()
+type abstract-class WebSocketSharp.Net.WebSockets.WebSocketContext
+  property System.Boolean IsAuthenticated get;
+  property System.Boolean IsLocal get;
+  property System.Boolean IsSecureConnection get;
+  property System.Boolean IsWebSocketRequest get;
+  property System.Collections.Generic.IEnumerable<System.String> SecWebSocketProtocols get;
+  property System.Collections.Specialized.NameValueCollection Headers get;
+  property System.Collections.Specialized.NameValueCollection QueryString get;
+  property System.Net.IPEndPoint ServerEndPoint get;
+  property System.Net.IPEndPoint UserEndPoint get;
+  property System.Security.Principal.IPrincipal User get;
+  property System.String Host get;
+  property System.String Origin get;
+  property System.String SecWebSocketKey get;
+  property System.String SecWebSocketVersion get;
+  property System.Uri RequestUri get;
+  property WebSocketSharp.Net.CookieCollection CookieCollection get;
+  property WebSocketSharp.WebSocket WebSocket get;
+type class WebSocketSharp.Server.HttpRequestEventArgs
+  property System.Security.Principal.IPrincipal User get;
+  property WebSocketSharp.Net.HttpListenerRequest Request get;
+  property WebSocketSharp.Net.HttpListenerResponse Response get;
+  method System.Boolean TryReadFile(System.String,out System.Byte[])
+  method System.Byte[] ReadFile(System.String)
+type class WebSocketSharp.Server.HttpServer
+  ctor .ctor()
+  ctor .ctor(System.Int32)
+  ctor .ctor(System.Int32,System.Boolean)
+  ctor .ctor(System.Net.IPAddress,System.Int32)
+  ctor .ctor(System.Net.IPAddress,System.Int32,System.Boolean)
+  ctor .ctor(System.String)
+  property System.Boolean IsListening get;
+  property System.Boolean IsSecure get;
+  property System.Boolean KeepClean get;set;
+  property System.Boolean ReuseAddress get;set;
+  property System.Func<System.Security.Principal.IIdentity,WebSocketSharp.Net.NetworkCredential> UserCredentialsFinder get;set;
+  property System.Int32 Port get;
+  property System.Net.IPAddress Address get;
+  property System.String DocumentRootPath get;set;
+  property System.String Realm get;set;
+  property System.TimeSpan HandshakeTimeout get;set;
+  property System.TimeSpan WaitTime get;set;
+  property WebSocketSharp.Logger Log get;
+  property WebSocketSharp.Net.AuthenticationSchemes AuthenticationSchemes get;set;
+  property WebSocketSharp.Net.ServerSslConfiguration SslConfiguration get;
+  property WebSocketSharp.Server.WebSocketServiceManager WebSocketServices get;
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnConnect
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnDelete
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnGet
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnHead
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnOptions
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnPost
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnPut
+  event System.EventHandler<WebSocketSharp.Server.HttpRequestEventArgs> OnTrace
+  method System.Boolean RemoveWebSocketService(System.String)
+  method System.Void AddWebSocketService<TBehavior>(System.String)
+  method System.Void AddWebSocketService<TBehavior>(System.String,System.Action<TBehavior>)
+  method System.Void Start()
+  method System.Void Stop()
+type interface WebSocketSharp.Server.IWebSocketSession
+  property System.DateTime StartTime get;
+  property System.String ID get;
+  property WebSocketSharp.WebSocket WebSocket get;
+type abstract-class WebSocketSharp.Server.WebSocketBehavior
+  property System.Action<System.Collections.Specialized.NameValueCollection,WebSocketSharp.Net.WebHeaderCollection> UserHeadersResponder get;set;
+  property System.Action<WebSocketSharp.Net.CookieCollection,WebSocketSharp.Net.CookieCollection> CookiesResponder get;set;
+  property System.Boolean EmitOnPing get;set;
+  property System.Boolean IgnoreExtensions get;set;
+  property System.Boolean NoDelay get;set;
+  property System.DateTime StartTime get;
+  property System.Func<System.String,System.Boolean> HostValidator get;set;
+  property System.Func<System.String,System.Boolean> OriginValidator get;set;
+  property System.Int32 MaxAsyncSendQueueLength get;set;
+  property System.Int32 MaxMessageEventQueueLength get;set;
+  property System.Int64 MaxFramePayloadLength get;set;
+  property System.Int64 MaxMessagePayloadLength get;set;
+  property System.String ID get;
+  property System.String Protocol get;set;
+  property System.TimeSpan FrameReadTimeout get;set;
+type class WebSocketSharp.Server.WebSocketServer
+  ctor .ctor()
+  ctor .ctor(System.Int32)
+  ctor .ctor(System.Int32,System.Boolean)
+  ctor .ctor(System.Net.IPAddress,System.Int32)
+  ctor .ctor(System.Net.IPAddress,System.Int32,System.Boolean)
+  ctor .ctor(System.String)
+  property System.Boolean IsListening get;
+  property System.Boolean IsSecure get;
+  property System.Boolean KeepClean get;set;
+  property System.Boolean ReuseAddress get;set;
+  property System.Func<System.Security.Principal.IIdentity,WebSocketSharp.Net.NetworkCredential> UserCredentialsFinder get;set;
+  property System.Int32 Port get;
+  property System.Net.IPAddress Address get;
+  property System.String Realm get;set;
+  property System.TimeSpan HandshakeTimeout get;set;
+  property System.TimeSpan WaitTime get;set;
+  property WebSocketSharp.Logger Log get;
+  property WebSocketSharp.Net.AuthenticationSchemes AuthenticationSchemes get;set;
+  property WebSocketSharp.Net.ServerSslConfiguration SslConfiguration get;
+  property WebSocketSharp.Server.WebSocketServiceManager WebSocketServices get;
+  method System.Boolean RemoveWebSocketService(System.String)
+  method System.Void AddWebSocketService<TBehavior>(System.String)
+  method System.Void AddWebSocketService<TBehavior>(System.String,System.Action<TBehavior>)
+  method System.Void Start()
+  method System.Void Stop()
+type abstract-class WebSocketSharp.Server.WebSocketServiceHost
+  property System.Boolean KeepClean get;set;
+  property System.String Path get;
+  property System.TimeSpan WaitTime get;set;
+  property System.Type BehaviorType get;
+  property WebSocketSharp.Server.WebSocketSessionManager Sessions get;
+type class WebSocketSharp.Server.WebSocketServiceManager
+  property System.Boolean KeepClean get;set;
+  property System.Collections.Generic.IEnumerable<System.String> Paths get;
+  property System.Collections.Generic.IEnumerable<WebSocketSharp.Server.WebSocketServiceHost> Hosts get;
+  property System.Int32 Count get;
+  property System.TimeSpan WaitTime get;set;
+  property WebSocketSharp.Server.WebSocketServiceHost Item[System.String] get;
+  method System.Boolean RemoveService(System.String)
+  method System.Boolean TryGetServiceHost(System.String,out WebSocketSharp.Server.WebSocketServiceHost)
+  method System.Void AddService<TBehavior>(System.String,System.Action<TBehavior>)
+  method System.Void Clear()
+type class WebSocketSharp.Server.WebSocketSessionManager
+  property System.Boolean KeepClean get;set;
+  property System.Collections.Generic.IEnumerable<System.String> ActiveIDs get;
+  property System.Collections.Generic.IEnumerable<System.String> IDs get;
+  property System.Collections.Generic.IEnumerable<System.String> InactiveIDs get;
+  property System.Collections.Generic.IEnumerable<WebSocketSharp.Server.IWebSocketSession> Sessions get;
+  property System.Int32 Count get;
+  property System.TimeSpan WaitTime get;set;
+  property WebSocketSharp.Server.IWebSocketSession Item[System.String] get;
+  method System.Boolean PingTo(System.String)
+  method System.Boolean PingTo(System.String,System.String)
+  method System.Boolean TryGetSession(System.String,out WebSocketSharp.Server.IWebSocketSession)
+  method System.Void Broadcast(System.Byte[])
+  method System.Void Broadcast(System.IO.Stream,System.Int32)
+  method System.Void Broadcast(System.String)
+  method System.Void BroadcastAsync(System.Byte[],System.Action)
+  method System.Void BroadcastAsync(System.IO.Stream,System.Int32,System.Action)
+  method System.Void BroadcastAsync(System.String,System.Action)
+  method System.Void CloseSession(System.String)
+  method System.Void CloseSession(System.String,System.UInt16,System.String)
+  method System.Void CloseSession(System.String,WebSocketSharp.CloseStatusCode,System.String)
+  method System.Void SendTo(System.Byte[],System.String)
+  method System.Void SendTo(System.IO.Stream,System.Int32,System.String)
+  method System.Void SendTo(System.String,System.String)
+  method System.Void SendToAsync(System.Byte[],System.String,System.Action<System.Boolean>)
+  method System.Void SendToAsync(System.IO.Stream,System.Int32,System.String,System.Action<System.Boolean>)
+  method System.Void SendToAsync(System.String,System.String,System.Action<System.Boolean>)
+  method System.Void Sweep()
+type class WebSocketSharp.WebSocket
+  field static System.Int32 DefaultMaxAsyncSendQueueLength
+  field static System.Int32 DefaultMaxMessageEventQueueLength
+  field static System.Int64 DefaultMaxFramePayloadLength
+  field static System.Int64 DefaultMaxMessagePayloadLength
+  field static System.TimeSpan DefaultFrameReadTimeout
+  ctor .ctor(System.String,params System.String[])
+  property System.Boolean EmitOnPing get;set;
+  property System.Boolean EnableRedirection get;set;
+  property System.Boolean IsAlive get;
+  property System.Boolean IsSecure get;
+  property System.Boolean NoDelay get;set;
+  property System.Collections.Specialized.NameValueCollection HandshakeResponseHeaders get;
+  property System.Int32 MaxAsyncSendQueueLength get;set;
+  property System.Int32 MaxMessageEventQueueLength get;set;
+  property System.Int64 MaxFramePayloadLength get;set;
+  property System.Int64 MaxMessagePayloadLength get;set;
+  property System.String Extensions get;
+  property System.String Origin get;set;
+  property System.String Protocol get;set;
+  property System.TimeSpan ConnectionTimeout get;set;
+  property System.TimeSpan FrameReadTimeout get;set;
+  property System.TimeSpan WaitTime get;set;
+  property System.Uri Url get;
+  property WebSocketSharp.CompressionMethod Compression get;set;
+  property WebSocketSharp.Logger Log get;set;
+  property WebSocketSharp.Net.ClientSslConfiguration SslConfiguration get;
+  property WebSocketSharp.Net.CookieCollection HandshakeResponseCookies get;
+  property WebSocketSharp.Net.NetworkCredential Credentials get;
+  property WebSocketSharp.WebSocketState ReadyState get;
+  event System.EventHandler OnOpen
+  event System.EventHandler<WebSocketSharp.CloseEventArgs> OnClose
+  event System.EventHandler<WebSocketSharp.ErrorEventArgs> OnError
+  event System.EventHandler<WebSocketSharp.MessageEventArgs> OnMessage
+  method System.Boolean Ping()
+  method System.Boolean Ping(System.String)
+  method System.Void Close()
+  method System.Void Close(System.UInt16)
+  method System.Void Close(System.UInt16,System.String)
+  method System.Void Close(WebSocketSharp.CloseStatusCode)
+  method System.Void Close(WebSocketSharp.CloseStatusCode,System.String)
+  method System.Void CloseAsync()
+  method System.Void CloseAsync(System.UInt16)
+  method System.Void CloseAsync(System.UInt16,System.String)
+  method System.Void CloseAsync(WebSocketSharp.CloseStatusCode)
+  method System.Void CloseAsync(WebSocketSharp.CloseStatusCode,System.String)
+  method System.Void Connect()
+  method System.Void ConnectAsync()
+  method System.Void Send(System.Byte[])
+  method System.Void Send(System.IO.FileInfo)
+  method System.Void Send(System.IO.Stream,System.Int32)
+  method System.Void Send(System.String)
+  method System.Void SendAsync(System.Byte[],System.Action<System.Boolean>)
+  method System.Void SendAsync(System.IO.FileInfo,System.Action<System.Boolean>)
+  method System.Void SendAsync(System.IO.Stream,System.Int32,System.Action<System.Boolean>)
+  method System.Void SendAsync(System.String,System.Action<System.Boolean>)
+  method System.Void SetCookie(WebSocketSharp.Net.Cookie)
+  method System.Void SetCredentials(System.String,System.String,System.Boolean)
+  method System.Void SetProxy(System.String,System.String,System.String)
+  method System.Void SetUserHeader(System.String,System.String)
+type class WebSocketSharp.WebSocketException
+  property System.UInt16 Code get;
+type enum WebSocketSharp.WebSocketState
+  field System.UInt16 value__
+  field static WebSocketSharp.WebSocketState Closed
+  field static WebSocketSharp.WebSocketState Closing
+  field static WebSocketSharp.WebSocketState Connecting
+  field static WebSocketSharp.WebSocketState New
+  field static WebSocketSharp.WebSocketState Open
+  enum Closed = 4
+  enum Closing = 3
+  enum Connecting = 1
+  enum New = 0
+  enum Open = 2
