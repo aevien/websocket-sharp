@@ -5,14 +5,14 @@
 This fork is maintained for Unity/.NET 4.x usage while keeping the original
 `websocket-sharp` assembly identity stable for existing Unity projects.
 
-Current preview:
+Current release:
 
-- Tag: `v1.0.6-unity-preview.1`
-- Release: [websocket-sharp v1.0.6 Unity Preview 1](https://github.com/aevien/websocket-sharp/releases/tag/v1.0.6-unity-preview.1)
+- Tag: `v1.1.0`
+- Release: [websocket-sharp v1.1.0](https://github.com/aevien/websocket-sharp/releases/tag/v1.1.0)
 - Target framework: `net472`
 - Assembly name: `websocket-sharp`
 - Assembly version: `1.0.2.32832` (kept for Unity binary compatibility)
-- File/product version: `1.0.6.0`
+- File/product version: `1.1.0.0`
 - WebGL: not supported by this managed socket implementation. Unity WebGL should
   continue to use the browser JavaScript WebSocket layer.
 
@@ -46,7 +46,7 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Repository stress suite: `7/7` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
-- Version metadata: file version and product version both report `1.0.6.0`.
+- Version metadata: file version and product version both report `1.1.0.0`.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
 - TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
 - TLS handshake timeout: silent TLS peers are bounded by client `ConnectionTimeout`, secure `WebSocketServer.HandshakeTimeout`, and secure `HttpServer.HandshakeTimeout`.
@@ -97,10 +97,10 @@ GitHub Actions:
 
 ### GitHub Release ###
 
-Download the Unity preview from the GitHub release page:
+Download the Unity release from the GitHub release page:
 
-- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.0.6-unity-preview.1/websocket-sharp.dll)
-- [websocket-sharp-v1.0.6-unity-preview.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.0.6-unity-preview.1/websocket-sharp-v1.0.6-unity-preview.1-unity-net472.zip)
+- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.1.0/websocket-sharp.dll)
+- [websocket-sharp-v1.1.0-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.1.0/websocket-sharp-v1.1.0-unity-net472.zip)
 
 ### Self Build ###
 
