@@ -37,6 +37,11 @@ namespace WebSocketSharp.Tests
       return String.Format ("ws://127.0.0.1:{0}{1}", Port, path);
     }
 
+    public string GetSecureUrl (string path)
+    {
+      return String.Format ("wss://127.0.0.1:{0}{1}", Port, path);
+    }
+
     public void Dispose ()
     {
       _disposed = true;

@@ -62,6 +62,75 @@ namespace WebSocketSharp.Tests
       }
     }
 
+    [Test]
+    public void SecureSilentTcpHandshakeUsesServerHandshakeTimeout ()
+    {
+      using (var certificate = TestCertificates.CreateSelfSignedServerCertificate ())
+      using (
+        var server = LoopbackServer.StartSecure (
+          certificate,
+          s => {
+            s.HandshakeTimeout = TimeSpan.FromMilliseconds (250);
+            s.Log.Output = (data, path) => { };
+            s.AddWebSocketService<EchoBehavior> ("/echo");
+          }
+        )
+      )
+      using (var client = new TcpClient ()) {
+        var elapsed = Stopwatch.StartNew ();
+
+        client.Connect (IPAddress.Loopback, server.Port);
+
+        WaitUntil (
+          () => IsDisconnected (client),
+          TimeSpan.FromSeconds (3),
+          "The server did not disconnect a silent TLS handshake client."
+        );
+
+        elapsed.Stop ();
+
+        Assert.That (elapsed.Elapsed, Is.LessThan (TimeSpan.FromSeconds (3)));
+        Assert.That (server.WebSocketServices["/echo"].Sessions.Count, Is.EqualTo (0));
+      }
+    }
+
+    [Test]
+    public void SecureHttpServerSilentTcpHandshakeUsesServerHandshakeTimeout ()
+    {
+      using (var certificate = TestCertificates.CreateSelfSignedServerCertificate ()) {
+        var port = LoopbackServer.GetFreeTcpPort ();
+        var server = new HttpServer (IPAddress.Loopback, port, true);
+
+        try {
+          server.SslConfiguration.ServerCertificate = certificate;
+          server.HandshakeTimeout = TimeSpan.FromMilliseconds (250);
+          server.Log.Output = (data, path) => { };
+          server.Start ();
+
+          Assert.That (server.IsListening, Is.True, "The loopback HTTP server did not start.");
+
+          using (var client = new TcpClient ()) {
+            var elapsed = Stopwatch.StartNew ();
+
+            client.Connect (IPAddress.Loopback, port);
+
+            WaitUntil (
+              () => IsDisconnected (client),
+              TimeSpan.FromSeconds (3),
+              "The HTTP server did not disconnect a silent TLS handshake client."
+            );
+
+            elapsed.Stop ();
+
+            Assert.That (elapsed.Elapsed, Is.LessThan (TimeSpan.FromSeconds (3)));
+          }
+        }
+        finally {
+          server.Stop ();
+        }
+      }
+    }
+
     private static bool IsDisconnected (TcpClient client)
     {
       try {

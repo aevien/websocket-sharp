@@ -76,7 +76,7 @@ namespace WebSocketSharp.Tests
       _server.Stop ();
     }
 
-    private static int GetFreeTcpPort ()
+    internal static int GetFreeTcpPort ()
     {
       var listener = new TcpListener (IPAddress.Loopback, 0);
       listener.Start ();

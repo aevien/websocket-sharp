@@ -89,11 +89,12 @@ namespace WebSocketSharp.Net.WebSockets
                           sslConfig.ClientCertificateValidationCallback
                         );
 
-        sslStream.AuthenticateAsServer (
+        sslStream.AuthenticateAsServerWithTimeout (
           sslConfig.ServerCertificate,
           sslConfig.ClientCertificateRequired,
           sslConfig.EnabledSslProtocols,
-          sslConfig.CheckCertificateRevocation
+          sslConfig.CheckCertificateRevocation,
+          _requestTimeout
         );
 
         _isSecureConnection = true;

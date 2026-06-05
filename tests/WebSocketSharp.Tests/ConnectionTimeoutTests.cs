@@ -39,5 +39,24 @@ namespace WebSocketSharp.Tests
         Assert.That (elapsed.Elapsed, Is.LessThan (TimeSpan.FromSeconds (3)));
       }
     }
+
+    [Test]
+    public void SecureConnectUsesConnectionTimeoutForSilentTlsHandshake ()
+    {
+      using (var server = SilentTcpServer.Start ())
+      using (var client = new WebSocket (server.GetSecureUrl ("/silent"))) {
+        var elapsed = Stopwatch.StartNew ();
+
+        client.ConnectionTimeout = TimeSpan.FromMilliseconds (250);
+        client.Log.Output = (data, path) => { };
+
+        client.Connect ();
+
+        elapsed.Stop ();
+
+        Assert.That (client.ReadyState, Is.Not.EqualTo (WebSocketState.Open));
+        Assert.That (elapsed.Elapsed, Is.LessThan (TimeSpan.FromSeconds (3)));
+      }
+    }
   }
 }

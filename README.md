@@ -7,17 +7,17 @@ This fork is maintained for Unity/.NET 4.x usage while keeping the original
 
 Current preview:
 
-- Tag: `v1.0.5-unity-preview.1`
-- Release: [websocket-sharp v1.0.5 Unity Preview 1](https://github.com/aevien/websocket-sharp/releases/tag/v1.0.5-unity-preview.1)
+- Tag: `v1.0.6-unity-preview.1`
+- Release: [websocket-sharp v1.0.6 Unity Preview 1](https://github.com/aevien/websocket-sharp/releases/tag/v1.0.6-unity-preview.1)
 - Target framework: `net472`
 - Assembly name: `websocket-sharp`
 - Assembly version: `1.0.2.32832` (kept for Unity binary compatibility)
-- File/product version: `1.0.5.0`
+- File/product version: `1.0.6.0`
 - WebGL: not supported by this managed socket implementation. Unity WebGL should
   continue to use the browser JavaScript WebSocket layer.
 
 Recent fork changes include safer TLS certificate validation defaults, bounded
-client/server handshake timeouts, replacement of delegate `BeginInvoke` usage,
+client/server handshake timeouts including TLS handshakes, replacement of delegate `BeginInvoke` usage,
 async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
 stricter RFC 6455 frame validation, bounded receive/send resource limits,
 and partial-frame receive timeouts.
@@ -42,13 +42,15 @@ websocket-sharp supports:
 
 This preview was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `49/49` NUnit tests passed on `net472`.
-- Repository stress suite: `6/6` stress tests passed on `net472`.
+- Repository normal suite: `52/52` NUnit tests passed on `net472`.
+- Repository stress suite: `7/7` stress tests passed on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
-- Version metadata: file version and product version both report `1.0.5.0`.
+- Version metadata: file version and product version both report `1.0.6.0`.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
 - TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
+- TLS handshake timeout: silent TLS peers are bounded by client `ConnectionTimeout`, secure `WebSocketServer.HandshakeTimeout`, and secure `HttpServer.HandshakeTimeout`.
+- TLS stress: 20 silent TLS handshakes are disconnected by the server timeout while a valid secure echo client still opens, echoes, and closes.
 - Async lifecycle: repeated `ConnectAsync` / `SendAsync` / `CloseAsync` cycles complete successfully, including a 500-cycle stress run.
 - Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
@@ -95,8 +97,8 @@ GitHub Actions:
 
 Download the Unity preview from the GitHub release page:
 
-- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.0.5-unity-preview.1/websocket-sharp.dll)
-- [websocket-sharp-v1.0.5-unity-preview.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.0.5-unity-preview.1/websocket-sharp-v1.0.5-unity-preview.1-unity-net472.zip)
+- [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.0.6-unity-preview.1/websocket-sharp.dll)
+- [websocket-sharp-v1.0.6-unity-preview.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.0.6-unity-preview.1/websocket-sharp-v1.0.6-unity-preview.1-unity-net472.zip)
 
 ### Self Build ###
 
@@ -126,6 +128,9 @@ resource risks in old WebSocket stacks:
 - `WebSocket.MaxMessagePayloadLength`: default `64 MiB`
 - `WebSocket.MaxMessageEventQueueLength`: default `1024`
 - `WebSocket.MaxAsyncSendQueueLength`: default `256`
+- `WebSocket.ConnectionTimeout`: default `10 seconds`
+- `WebSocketServer.HandshakeTimeout`: default `10 seconds`
+- `HttpServer.HandshakeTimeout`: default `10 seconds`
 - `WebSocket.FrameReadTimeout`: default `10 seconds`
 
 Set these values before `Connect`, `ConnectAsync`, or server `Accept`. For
@@ -146,6 +151,10 @@ wssv.AddWebSocketService<Echo> (
 `FrameReadTimeout` does not close an idle open connection with no incoming
 bytes. It applies after a peer starts a WebSocket frame and then stalls while
 the rest of that frame is being read.
+
+For `wss://` clients, `ConnectionTimeout` also bounds the TLS handshake. For
+secure `WebSocketServer` and `HttpServer` instances, `HandshakeTimeout` bounds
+both the TLS handshake and the first HTTP/WebSocket request.
 
 ## Usage ##
 

@@ -113,11 +113,12 @@ namespace WebSocketSharp.Net
                           sslConf.ClientCertificateValidationCallback
                         );
 
-        sslStream.AuthenticateAsServer (
+        sslStream.AuthenticateAsServerWithTimeout (
           sslConf.ServerCertificate,
           sslConf.ClientCertificateRequired,
           sslConf.EnabledSslProtocols,
-          sslConf.CheckCertificateRevocation
+          sslConf.CheckCertificateRevocation,
+          listener.FirstRequestTimeoutMilliseconds
         );
 
         _secure = true;

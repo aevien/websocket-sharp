@@ -78,6 +78,67 @@ namespace WebSocketSharp.StressTests
       );
     }
 
+    [Test]
+    public void SilentTlsClientsDoNotBlockValidSecureWebSocketHandshakes ()
+    {
+      var silentClientCount = GetPositiveInt ("WEBSOCKET_SHARP_SLOW_TLS_HANDSHAKE_CLIENTS", DefaultSilentClientCount);
+      var handshakeTimeout = TimeSpan.FromMilliseconds (
+        GetPositiveInt ("WEBSOCKET_SHARP_SLOW_TLS_HANDSHAKE_TIMEOUT_MILLISECONDS", DefaultHandshakeTimeoutMilliseconds)
+      );
+      var testTimeout = TimeSpan.FromSeconds (
+        GetPositiveInt ("WEBSOCKET_SHARP_SLOW_TLS_HANDSHAKE_TEST_TIMEOUT_SECONDS", DefaultTestTimeoutSeconds)
+      );
+      var elapsed = Stopwatch.StartNew ();
+
+      using (var certificate = StressTestCertificates.CreateSelfSignedServerCertificate ())
+      using (
+        var server = StressLoopbackServer.StartSecure (
+          certificate,
+          s => {
+            s.HandshakeTimeout = handshakeTimeout;
+            s.Log.Output = (data, path) => { };
+            s.AddWebSocketService<EchoBehavior> ("/echo");
+          }
+        )
+      ) {
+        var sessions = server.WebSocketServices["/echo"].Sessions;
+        var silentClients = new List<TcpClient> (silentClientCount);
+
+        try {
+          for (var i = 0; i < silentClientCount; i++)
+            silentClients.Add (CreateSilentClient (server.Port));
+
+          Assert.That (sessions.Count, Is.EqualTo (0));
+
+          RoundTripValidClient (server.GetSecureUrl ("/echo"), testTimeout, certificate.Thumbprint);
+
+          WaitUntil (
+            () => sessions.Count == 0,
+            testTimeout,
+            "The valid secure client session was not released after close."
+          );
+
+          WaitUntil (
+            () => silentClients.All (IsDisconnected),
+            testTimeout,
+            "The server did not disconnect every silent TLS handshake client."
+          );
+        }
+        finally {
+          foreach (var client in silentClients)
+            client.Close ();
+        }
+      }
+
+      elapsed.Stop ();
+      TestContext.WriteLine (
+        "Completed slow TLS-handshake stress with {0} silent clients and {1} server timeout in {2}.",
+        silentClientCount,
+        handshakeTimeout,
+        elapsed.Elapsed
+      );
+    }
+
     private static TcpClient CreateSilentClient (int port)
     {
       var client = new TcpClient ();
@@ -112,6 +173,15 @@ namespace WebSocketSharp.StressTests
 
     private static void RoundTripValidClient (string url, TimeSpan timeout)
     {
+      RoundTripValidClient (url, timeout, null);
+    }
+
+    private static void RoundTripValidClient (
+      string url,
+      TimeSpan timeout,
+      string trustedCertificateThumbprint
+    )
+    {
       using (var client = new WebSocket (url))
       using (var opened = new ManualResetEventSlim ())
       using (var sent = new ManualResetEventSlim ())
@@ -123,6 +193,18 @@ namespace WebSocketSharp.StressTests
         var error = default (Exception);
 
         client.ConnectionTimeout = timeout;
+
+        if (trustedCertificateThumbprint != null) {
+          client.SslConfiguration.ServerCertificateValidationCallback =
+            (sender, remoteCertificate, chain, sslPolicyErrors) =>
+              remoteCertificate != null
+              && String.Equals (
+                   remoteCertificate.GetCertHashString (),
+                   trustedCertificateThumbprint,
+                   StringComparison.OrdinalIgnoreCase
+                 );
+        }
+
         client.OnOpen += (sender, e) => opened.Set ();
         client.OnMessage += (sender, e) => {
           actual = e.Data;

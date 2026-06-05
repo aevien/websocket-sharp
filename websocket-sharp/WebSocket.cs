@@ -3121,11 +3121,12 @@ namespace WebSocketSharp
                             conf.ClientCertificateSelectionCallback
                           );
 
-          sslStream.AuthenticateAsClient (
+          sslStream.AuthenticateAsClientWithTimeout (
             host,
             conf.ClientCertificates,
             conf.EnabledSslProtocols,
-            conf.CheckCertificateRevocation
+            conf.CheckCertificateRevocation,
+            getConnectionTimeoutMilliseconds ()
           );
 
           _stream = sslStream;

@@ -50,7 +50,9 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.IO.Compression;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -256,9 +258,126 @@ namespace WebSocketSharp
       return Math.Max (1, (int) milliseconds);
     }
 
+    private static void authenticateWithTimeout (
+      SslStream stream,
+      Func<AsyncCallback, IAsyncResult> begin,
+      Action<IAsyncResult> end,
+      int timeout
+    )
+    {
+      var sync = new object ();
+      var completed = false;
+      var timedOut = false;
+
+      AsyncCallback callback =
+        ar => {
+          var cleanup = false;
+
+          lock (sync) {
+            completed = true;
+            cleanup = timedOut;
+          }
+
+          if (!cleanup)
+            return;
+
+          try {
+            end (ar);
+          }
+          catch {
+          }
+
+          try {
+            ar.AsyncWaitHandle.Close ();
+          }
+          catch {
+          }
+        };
+
+      var result = begin (callback);
+
+      try {
+        if (!result.AsyncWaitHandle.WaitOne (Math.Max (1, timeout))) {
+          var shouldTimeout = false;
+
+          lock (sync) {
+            if (!completed) {
+              timedOut = true;
+              shouldTimeout = true;
+            }
+          }
+
+          if (shouldTimeout) {
+            stream.Dispose ();
+
+            throw new TimeoutException ("The TLS handshake has timed out.");
+          }
+        }
+
+        end (result);
+      }
+      finally {
+        var close = false;
+
+        lock (sync)
+          close = !timedOut;
+
+        if (close)
+          result.AsyncWaitHandle.Close ();
+      }
+    }
+
     #endregion
 
     #region Internal Methods
+
+    internal static void AuthenticateAsClientWithTimeout (
+      this SslStream stream,
+      string targetHost,
+      X509CertificateCollection clientCertificates,
+      SslProtocols enabledSslProtocols,
+      bool checkCertificateRevocation,
+      int timeout
+    )
+    {
+      authenticateWithTimeout (
+        stream,
+        callback => stream.BeginAuthenticateAsClient (
+                      targetHost,
+                      clientCertificates,
+                      enabledSslProtocols,
+                      checkCertificateRevocation,
+                      callback,
+                      null
+                    ),
+        stream.EndAuthenticateAsClient,
+        timeout
+      );
+    }
+
+    internal static void AuthenticateAsServerWithTimeout (
+      this SslStream stream,
+      X509Certificate serverCertificate,
+      bool clientCertificateRequired,
+      SslProtocols enabledSslProtocols,
+      bool checkCertificateRevocation,
+      int timeout
+    )
+    {
+      authenticateWithTimeout (
+        stream,
+        callback => stream.BeginAuthenticateAsServer (
+                      serverCertificate,
+                      clientCertificateRequired,
+                      enabledSslProtocols,
+                      checkCertificateRevocation,
+                      callback,
+                      null
+                    ),
+        stream.EndAuthenticateAsServer,
+        timeout
+      );
+    }
 
     internal static byte[] Append (this ushort code, string reason)
     {
