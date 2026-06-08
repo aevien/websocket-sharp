@@ -15,6 +15,7 @@ namespace WebSocketSharp.StressTests
   public sealed class SustainedEchoStressTests
   {
     private const int DefaultClientCount = 100;
+    private const int DefaultInFlightPerClient = 1;
     private const int DefaultMessagesPerClient = 1000;
     private const int DefaultTimeoutSeconds = 300;
 
@@ -25,6 +26,13 @@ namespace WebSocketSharp.StressTests
       var messagesPerClient = GetPositiveInt (
         "WEBSOCKET_SHARP_SUSTAINED_MESSAGES_PER_CLIENT",
         DefaultMessagesPerClient
+      );
+      var inFlightPerClient = Math.Min (
+        GetPositiveInt (
+          "WEBSOCKET_SHARP_SUSTAINED_IN_FLIGHT_PER_CLIENT",
+          DefaultInFlightPerClient
+        ),
+        messagesPerClient
       );
       var timeout = TimeSpan.FromSeconds (
         GetPositiveInt ("WEBSOCKET_SHARP_SUSTAINED_TIMEOUT_SECONDS", DefaultTimeoutSeconds)
@@ -40,18 +48,24 @@ namespace WebSocketSharp.StressTests
       using (var closed = new CountdownEvent (clientCount)) {
         var sessions = server.WebSocketServices["/echo"].Sessions;
         var clients = new List<WebSocket> (clientCount);
+        var echoed = new ConcurrentDictionary<string, bool> (StringComparer.Ordinal);
         var errors = new ConcurrentQueue<string> ();
         var sentCounts = new int[clientCount];
         var receivedCounts = new int[clientCount];
+        var sendLocks = new object[clientCount];
         var openSeen = new int[clientCount];
         var closeSeen = new int[clientCount];
         Action<int> sendNext = null;
 
         sendNext = clientIndex => {
-          var messageIndex = Interlocked.Increment (ref sentCounts[clientIndex]) - 1;
+          int messageIndex;
 
-          if (messageIndex >= messagesPerClient)
-            return;
+          lock (sendLocks[clientIndex]) {
+            if (sentCounts[clientIndex] >= messagesPerClient)
+              return;
+
+            messageIndex = sentCounts[clientIndex]++;
+          }
 
           var payload = FormatPayload (clientIndex, messageIndex);
 
@@ -76,7 +90,8 @@ namespace WebSocketSharp.StressTests
         };
 
         try {
-          for (var i = 0; i < clientCount; i++)
+          for (var i = 0; i < clientCount; i++) {
+            sendLocks[i] = new object ();
             clients.Add (
               CreateClient (
                 server.GetUrl ("/echo"),
@@ -86,6 +101,7 @@ namespace WebSocketSharp.StressTests
                 received,
                 completedClients,
                 closed,
+                echoed,
                 errors,
                 receivedCounts,
                 openSeen,
@@ -93,6 +109,7 @@ namespace WebSocketSharp.StressTests
                 sendNext
               )
             );
+          }
 
           for (var clientIndex = 0; clientIndex < clients.Count; clientIndex++) {
             var currentClient = clientIndex;
@@ -117,7 +134,8 @@ namespace WebSocketSharp.StressTests
           );
 
           for (var clientIndex = 0; clientIndex < clients.Count; clientIndex++)
-            sendNext (clientIndex);
+            for (var inFlightIndex = 0; inFlightIndex < inFlightPerClient; inFlightIndex++)
+              sendNext (clientIndex);
 
           WaitFor (sendCallbacks, timeout, "Not all sustained stress send callbacks completed.");
           AssertNoErrors (errors);
@@ -125,6 +143,7 @@ namespace WebSocketSharp.StressTests
           WaitFor (received, timeout, "Not all sustained stress echo messages were received.");
           WaitFor (completedClients, timeout, "Not all sustained stress clients completed.");
           AssertNoErrors (errors);
+          Assert.That (echoed.Count, Is.EqualTo (expectedMessages));
 
           for (var clientIndex = 0; clientIndex < clientCount; clientIndex++) {
             Assert.That (
@@ -162,10 +181,11 @@ namespace WebSocketSharp.StressTests
       var messagesPerSecond = expectedMessages / Math.Max (elapsed.Elapsed.TotalSeconds, 0.001);
 
       TestContext.WriteLine (
-        "Completed sustained echo stress with {0} CCU x {1} messages ({2} total) in {3}; throughput {4:0.0} msg/s.",
+        "Completed sustained echo stress with {0} CCU x {1} messages ({2} total, {3} in-flight per client) in {4}; throughput {5:0.0} msg/s.",
         clientCount,
         messagesPerClient,
         expectedMessages,
+        inFlightPerClient,
         elapsed.Elapsed,
         messagesPerSecond
       );
@@ -179,6 +199,7 @@ namespace WebSocketSharp.StressTests
       CountdownEvent received,
       CountdownEvent completedClients,
       CountdownEvent closed,
+      ConcurrentDictionary<string, bool> echoed,
       ConcurrentQueue<string> errors,
       int[] receivedCounts,
       int[] openSeen,
@@ -199,22 +220,40 @@ namespace WebSocketSharp.StressTests
           return;
         }
 
-        var messageIndex = Interlocked.Increment (ref receivedCounts[clientIndex]) - 1;
-        var expectedPayload = FormatPayload (clientIndex, messageIndex);
+        var prefix = String.Format ("sustained-stress-{0}-", clientIndex);
 
-        if (e.Data != expectedPayload)
+        if (!e.Data.StartsWith (prefix, StringComparison.Ordinal)) {
           errors.Enqueue (
             String.Format (
-              "Client {0} received unexpected payload. Expected: {1}. Actual: {2}.",
+              "Client {0} received a payload for another client. Actual: {1}.",
               clientIndex,
-              expectedPayload,
               e.Data
             )
           );
+        }
+        else {
+          int messageIndex;
+
+          if (!Int32.TryParse (e.Data.Substring (prefix.Length), out messageIndex) ||
+              messageIndex < 0 ||
+              messageIndex >= messagesPerClient)
+            errors.Enqueue (
+              String.Format (
+                "Client {0} received an out-of-range payload. Actual: {1}.",
+                clientIndex,
+                e.Data
+              )
+            );
+        }
+
+        if (!echoed.TryAdd (e.Data, true))
+          errors.Enqueue ("Received a duplicate echo payload: " + e.Data);
+
+        var receivedCount = Interlocked.Increment (ref receivedCounts[clientIndex]);
 
         received.Signal ();
 
-        if (messageIndex + 1 == messagesPerClient) {
+        if (receivedCount == messagesPerClient) {
           completedClients.Signal ();
           return;
         }
