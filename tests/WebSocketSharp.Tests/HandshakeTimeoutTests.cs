@@ -33,6 +33,41 @@ namespace WebSocketSharp.Tests
     }
 
     [Test]
+    public void ServerHandshakeLimitsCanBeConfiguredBeforeStarting ()
+    {
+      var webSocketServer = new WebSocketServer (IPAddress.Loopback, 1);
+      var httpServer = new HttpServer (IPAddress.Loopback, 1);
+
+      Assert.That (webSocketServer.MaxConcurrentHandshakes, Is.EqualTo (128));
+      Assert.That (webSocketServer.MaxPendingHandshakes, Is.EqualTo (4096));
+      Assert.That (httpServer.MaxConcurrentHandshakes, Is.EqualTo (128));
+      Assert.That (httpServer.MaxPendingHandshakes, Is.EqualTo (4096));
+
+      webSocketServer.MaxConcurrentHandshakes = 16;
+      webSocketServer.MaxPendingHandshakes = 32;
+      httpServer.MaxConcurrentHandshakes = 16;
+      httpServer.MaxPendingHandshakes = 32;
+
+      Assert.That (webSocketServer.MaxConcurrentHandshakes, Is.EqualTo (16));
+      Assert.That (webSocketServer.MaxPendingHandshakes, Is.EqualTo (32));
+      Assert.That (httpServer.MaxConcurrentHandshakes, Is.EqualTo (16));
+      Assert.That (httpServer.MaxPendingHandshakes, Is.EqualTo (32));
+
+      Assert.Throws<ArgumentOutOfRangeException> (
+        () => webSocketServer.MaxConcurrentHandshakes = 0
+      );
+      Assert.Throws<ArgumentOutOfRangeException> (
+        () => webSocketServer.MaxPendingHandshakes = 0
+      );
+      Assert.Throws<ArgumentOutOfRangeException> (
+        () => httpServer.MaxConcurrentHandshakes = 0
+      );
+      Assert.Throws<ArgumentOutOfRangeException> (
+        () => httpServer.MaxPendingHandshakes = 0
+      );
+    }
+
+    [Test]
     public void SilentTcpHandshakeUsesServerHandshakeTimeout ()
     {
       using (

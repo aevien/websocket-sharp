@@ -627,6 +627,8 @@ type class WebSocketSharp.Server.HttpServer
   property System.Boolean KeepClean get;set;
   property System.Boolean ReuseAddress get;set;
   property System.Func<System.Security.Principal.IIdentity,WebSocketSharp.Net.NetworkCredential> UserCredentialsFinder get;set;
+  property System.Int32 MaxConcurrentHandshakes get;set;
+  property System.Int32 MaxPendingHandshakes get;set;
   property System.Int32 Port get;
   property System.Net.IPAddress Address get;
   property System.String DocumentRootPath get;set;
@@ -682,6 +684,8 @@ type class WebSocketSharp.Server.WebSocketServer
   property System.Boolean KeepClean get;set;
   property System.Boolean ReuseAddress get;set;
   property System.Func<System.Security.Principal.IIdentity,WebSocketSharp.Net.NetworkCredential> UserCredentialsFinder get;set;
+  property System.Int32 MaxConcurrentHandshakes get;set;
+  property System.Int32 MaxPendingHandshakes get;set;
   property System.Int32 Port get;
   property System.Net.IPAddress Address get;
   property System.String Realm get;set;

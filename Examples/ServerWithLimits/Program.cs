@@ -18,7 +18,12 @@ namespace ServerWithLimits
       var server = new WebSocketServer (IPAddress.Loopback, Port) {
         // Bounds peers that connect and then do not finish the HTTP/WebSocket
         // handshake. On secure servers this also bounds the TLS handshake.
-        HandshakeTimeout = TimeSpan.FromSeconds (5)
+        HandshakeTimeout = TimeSpan.FromSeconds (5),
+
+        // These limits apply only while connections are completing their
+        // handshake. They do not limit the number of already open sessions.
+        MaxConcurrentHandshakes = 128,
+        MaxPendingHandshakes = 4096
       };
 
       server.AddWebSocketService<Echo> (

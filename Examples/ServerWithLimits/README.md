@@ -6,7 +6,10 @@ explicit resource limits.
 It demonstrates:
 
 - `WebSocketServer(IPAddress.Loopback, port)` so the sample is local by default.
-- `HandshakeTimeout` before `Start()`.
+- `HandshakeTimeout`, `MaxConcurrentHandshakes`, and
+  `MaxPendingHandshakes` before `Start()`.
+- Handshake capacity is separate from the number of established WebSocket
+  sessions, so these settings do not impose a CCU limit.
 - Per-service `MaxFramePayloadLength`, `MaxMessagePayloadLength`,
   `MaxMessageEventQueueLength`, `MaxAsyncSendQueueLength`, and
   `FrameReadTimeout`.

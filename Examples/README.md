@@ -18,8 +18,8 @@ dotnet run --project .\Examples\ClientLifecycle\ClientLifecycle.csproj -- ws://l
 
 ### ServerWithLimits
 
-Loopback echo server with explicit handshake, frame, message, event queue, and
-async send queue limits.
+Loopback echo server with explicit handshake concurrency, pending handshake,
+frame, message, event queue, and async send queue limits.
 
 ```powershell
 dotnet run --project .\Examples\ServerWithLimits\ServerWithLimits.csproj

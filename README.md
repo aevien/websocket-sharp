@@ -45,8 +45,8 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `94/94` NUnit tests passed on `net472`.
-- Repository stress suite: `8/8` stress tests passed on `net472`.
+- Repository normal suite: `97/97` NUnit tests passed on `net472`.
+- Repository stress suite: `10/10` stress tests passed on `net472`.
 - Examples build: legacy `Example`, `Example2`, `Example3` and modern console
   examples under `Examples` build on `net472`.
 - Async compatibility: no `BeginInvoke` / `EndInvoke` usage remains in `websocket-sharp` or tests.
@@ -62,6 +62,9 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
 - Proxy path: HTTP CONNECT tunnel echo, silent proxy timeout, failed proxy response, 407 without credentials, and Basic proxy auth retry after a closed challenge connection are covered.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
+- Bounded server handshakes: 200 silent clients with limits of 4 active and 8 pending handshakes rejected 188 excess connections while process thread count grew by only 4 worker threads; a valid echo client connected after recovery.
+- Bounded HTTP upgrade handshakes: an `HttpServer` configured for 2 active and 1 pending handshake opened 3 of 20 blocked upgrade requests, rejected 17, recovered for echo, and passed `Stop` / `Start` reuse.
+- Shutdown isolation: a blocked user handshake callback kept the server in `ShuttingDown`, prevented restart with a live old worker, and allowed a clean stop, restart, and echo after the callback exited.
 - Handshake parser limits: oversized handshake headers, too-long request/header lines, and header-count flooding are rejected before a WebSocket session starts.
 - Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
@@ -101,8 +104,8 @@ dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -
 GitHub Actions:
 
 - `CI` runs on `main`, `dev`, and pull requests to those branches.
-- `CI` builds the library, normal tests, and all `net472` console examples.
-- `Stress Tests` is manual and can be started from the Actions tab.
+- `CI` builds the full solution and runs both normal and stress suites.
+- `Stress Tests` can also be started manually from the Actions tab with custom load settings.
 
 ## Install ##
 
@@ -144,6 +147,10 @@ resource risks in old WebSocket stacks:
 - `WebSocket.ConnectionTimeout`: default `10 seconds`
 - `WebSocketServer.HandshakeTimeout`: default `10 seconds`
 - `HttpServer.HandshakeTimeout`: default `10 seconds`
+- `WebSocketServer.MaxConcurrentHandshakes`: default `128`
+- `WebSocketServer.MaxPendingHandshakes`: default `4096`
+- `HttpServer.MaxConcurrentHandshakes`: default `128`
+- `HttpServer.MaxPendingHandshakes`: default `4096`
 - `WebSocket.FrameReadTimeout`: default `10 seconds`
 
 The HTTP/WebSocket handshake parser also has fixed guardrails:
@@ -174,6 +181,10 @@ the rest of that frame is being read.
 For `wss://` clients, `ConnectionTimeout` also bounds the TLS handshake. For
 secure `WebSocketServer` and `HttpServer` instances, `HandshakeTimeout` bounds
 both the TLS handshake and the first HTTP/WebSocket request.
+
+`MaxConcurrentHandshakes` and `MaxPendingHandshakes` bound only connections
+that are still completing the WebSocket handshake. They do not limit already
+established sessions or total CCU. Configure both properties before `Start()`.
 
 ## Usage ##
 
@@ -832,7 +843,7 @@ back to an application/main thread.
 ### Examples/ServerWithLimits ###
 
 `Examples/ServerWithLimits` is a compact loopback echo server focused on
-resource limits and graceful shutdown.
+handshake concurrency, bounded queues, payload limits, and graceful shutdown.
 
 ### Examples/SecureAndProxyClient ###
 

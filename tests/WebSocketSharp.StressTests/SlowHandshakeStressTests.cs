@@ -20,6 +20,100 @@ namespace WebSocketSharp.StressTests
     private const int DefaultTestTimeoutSeconds = 10;
 
     [Test]
+    public void BoundedHandshakeDispatcherLimitsThreadsAndRecoversAfterOverload ()
+    {
+      const int maxConcurrentHandshakes = 4;
+      const int maxPendingHandshakes = 8;
+      const int silentClientCount = 200;
+      const int threadCountTolerance = 12;
+
+      var timeout = TimeSpan.FromSeconds (10);
+
+      using (
+        var server = StressLoopbackServer.Start (
+          s => {
+            s.HandshakeTimeout = TimeSpan.FromSeconds (5);
+            s.MaxConcurrentHandshakes = maxConcurrentHandshakes;
+            s.MaxPendingHandshakes = maxPendingHandshakes;
+            s.Log.Output = (data, path) => { };
+            s.AddWebSocketService<EchoBehavior> ("/echo");
+          }
+        )
+      ) {
+        var silentClients = new List<TcpClient> (silentClientCount);
+        var baselineThreadCount = Process.GetCurrentProcess ().Threads.Count;
+        var peakThreadCount = baselineThreadCount;
+
+        try {
+          for (var i = 0; i < silentClientCount; i++) {
+            silentClients.Add (CreateSilentClient (server.Port));
+            peakThreadCount = Math.Max (
+                                peakThreadCount,
+                                Process.GetCurrentProcess ().Threads.Count
+                              );
+          }
+
+          var expectedImmediateRejections = silentClientCount
+                                            - maxConcurrentHandshakes
+                                            - maxPendingHandshakes;
+          var rejectionDeadline = DateTime.UtcNow.AddSeconds (3);
+
+          while (DateTime.UtcNow < rejectionDeadline) {
+            peakThreadCount = Math.Max (
+                                peakThreadCount,
+                                Process.GetCurrentProcess ().Threads.Count
+                              );
+
+            if (silentClients.Count (IsDisconnected) >= expectedImmediateRejections)
+              break;
+
+            Thread.Sleep (10);
+          }
+
+          var rejectedClientCount = silentClients.Count (IsDisconnected);
+
+          Assert.That (
+            rejectedClientCount,
+            Is.GreaterThanOrEqualTo (expectedImmediateRejections),
+            "The bounded queue did not reject excess handshake clients promptly."
+          );
+          Assert.That (
+            peakThreadCount,
+            Is.LessThanOrEqualTo (
+              baselineThreadCount + maxConcurrentHandshakes + threadCountTolerance
+            ),
+            "Handshake overload created more worker threads than the configured bound allows."
+          );
+
+          foreach (var client in silentClients)
+            client.Close ();
+
+          RoundTripValidClient (server.GetUrl ("/echo"), timeout);
+
+          WaitUntil (
+            () => server.WebSocketServices["/echo"].Sessions.Count == 0,
+            timeout,
+            "The valid client session was not released after overload recovery."
+          );
+
+          TestContext.WriteLine (
+            "Bounded handshake proof: clients={0}, concurrent={1}, pending={2}, rejected={3}, threads baseline={4}, peak={5}.",
+            silentClientCount,
+            maxConcurrentHandshakes,
+            maxPendingHandshakes,
+            rejectedClientCount,
+            baselineThreadCount,
+            peakThreadCount
+          );
+        }
+        finally {
+          foreach (var client in silentClients)
+            client.Close ();
+        }
+      }
+    }
+
+    [Test]
     public void SilentTcpClientsDoNotBlockValidWebSocketHandshakes ()
     {
       var silentClientCount = GetPositiveInt ("WEBSOCKET_SHARP_SLOW_HANDSHAKE_CLIENTS", DefaultSilentClientCount);

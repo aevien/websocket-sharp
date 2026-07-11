@@ -61,13 +61,17 @@ namespace WebSocketSharp.Server
     private System.Net.IPAddress               _address;
     private AuthenticationSchemes              _authSchemes;
     private static readonly string             _defaultRealm;
+    private BoundedOperationDispatcher         _handshakeDispatcher;
     private TimeSpan                           _handshakeTimeout;
     private string                             _hostname;
     private bool                               _isDnsStyle;
     private bool                               _isSecure;
     private TcpListener                        _listener;
     private Logger                             _log;
+    private int                                _maxConcurrentHandshakes;
+    private int                                _maxPendingHandshakes;
     private int                                _port;
+    private int                                _rejectedHandshakeCount;
     private string                             _realm;
     private string                             _realmInUse;
     private Thread                             _receiveThread;
@@ -76,6 +80,7 @@ namespace WebSocketSharp.Server
     private ServerSslConfiguration             _sslConfig;
     private ServerSslConfiguration             _sslConfigInUse;
     private volatile ServerState               _state;
+    private bool                               _shutdownInProgress;
     private object                             _sync;
     private Func<IIdentity, NetworkCredential> _userCredFinder;
 
@@ -624,6 +629,62 @@ namespace WebSocketSharp.Server
     }
 
     /// <summary>
+    /// Gets or sets the maximum number of handshake operations processed at once.
+    /// </summary>
+    /// <remarks>
+    /// The set operation works if the current state of the server is Ready or Stop.
+    /// The default value is 128.
+    /// </remarks>
+    public int MaxConcurrentHandshakes {
+      get {
+        return _maxConcurrentHandshakes;
+      }
+
+      set {
+        if (value < 1) {
+          var msg = "Less than 1.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_sync) {
+          if (!canSet ())
+            return;
+
+          _maxConcurrentHandshakes = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of handshake operations waiting to run.
+    /// </summary>
+    /// <remarks>
+    /// The set operation works if the current state of the server is Ready or Stop.
+    /// The default value is 4096.
+    /// </remarks>
+    public int MaxPendingHandshakes {
+      get {
+        return _maxPendingHandshakes;
+      }
+
+      set {
+        if (value < 1) {
+          var msg = "Less than 1.";
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_sync) {
+          if (!canSet ())
+            return;
+
+          _maxPendingHandshakes = value;
+        }
+      }
+    }
+
+    /// <summary>
     /// Gets or sets the time to wait for the response to the WebSocket
     /// Ping or Close.
     /// </summary>
@@ -673,30 +734,38 @@ namespace WebSocketSharp.Server
 
     private void abort ()
     {
-      lock (_sync) {
-        if (_state != ServerState.Start)
+      if (!tryBeginShutdown ())
+        return;
+
+      var completed = false;
+
+      try {
+        try {
+          _listener.Stop ();
+        }
+        catch (Exception ex) {
+          _log.Fatal (ex.Message);
+          _log.Debug (ex.ToString ());
+        }
+
+        var receivingStopped = stopHandshakeDispatcher (5000);
+
+        if (!receivingStopped)
           return;
 
-        _state = ServerState.ShuttingDown;
-      }
+        try {
+          _services.Stop (1006, String.Empty);
+        }
+        catch (Exception ex) {
+          _log.Fatal (ex.Message);
+          _log.Debug (ex.ToString ());
+        }
 
-      try {
-        _listener.Stop ();
+        completed = true;
       }
-      catch (Exception ex) {
-        _log.Fatal (ex.Message);
-        _log.Debug (ex.ToString ());
+      finally {
+        endShutdown (completed);
       }
-
-      try {
-        _services.Stop (1006, String.Empty);
-      }
-      catch (Exception ex) {
-        _log.Fatal (ex.Message);
-        _log.Debug (ex.ToString ());
-      }
-
-      _state = ServerState.Stop;
     }
 
     private bool authenticateClient (TcpListenerWebSocketContext context)
@@ -784,6 +853,8 @@ namespace WebSocketSharp.Server
       _isDnsStyle = Uri.CheckHostName (hostname) == UriHostNameType.Dns;
       _listener = new TcpListener (address, port);
       _log = new Logger ();
+      _maxConcurrentHandshakes = 128;
+      _maxPendingHandshakes = 4096;
       _services = new WebSocketServiceManager (_log);
       _sync = new object ();
     }
@@ -837,7 +908,15 @@ namespace WebSocketSharp.Server
           cl = _listener.AcceptTcpClient ();
           var accepted = cl;
 
-          AsyncHelper.QueueBlocking (
+          var dispatcher = _handshakeDispatcher;
+
+          if (dispatcher == null) {
+            accepted.Close ();
+            cl = null;
+            continue;
+          }
+
+          var queued = dispatcher.TryEnqueue (
             () => {
               try {
                 var ctx = new TcpListenerWebSocketContext (
@@ -857,8 +936,12 @@ namespace WebSocketSharp.Server
 
                 accepted.Close ();
               }
-            }
+            },
+            accepted.Close
           );
+
+          if (!queued)
+            logHandshakeRejection ();
 
           cl = null;
         }
@@ -935,6 +1018,18 @@ namespace WebSocketSharp.Server
 
     private void startReceiving ()
     {
+      Interlocked.Exchange (ref _rejectedHandshakeCount, 0);
+
+      var dispatcher = new BoundedOperationDispatcher (
+                         _maxConcurrentHandshakes,
+                         _maxPendingHandshakes,
+                         "WebSocketHandshake",
+                         ex => {
+                           _log.Error (ex.Message);
+                           _log.Debug (ex.ToString ());
+                         }
+                       );
+
       if (_reuseAddress) {
         _listener.Server.SetSocketOption (
           SocketOptionLevel.Socket,
@@ -947,6 +1042,8 @@ namespace WebSocketSharp.Server
         _listener.Start ();
       }
       catch (Exception ex) {
+        dispatcher.Stop (5000);
+
         var msg = "The underlying listener has failed to start.";
 
         throw new InvalidOperationException (msg, ex);
@@ -956,43 +1053,123 @@ namespace WebSocketSharp.Server
       _receiveThread = new Thread (receiver);
       _receiveThread.IsBackground = true;
 
-      _receiveThread.Start ();
+      _handshakeDispatcher = dispatcher;
+
+      try {
+        _receiveThread.Start ();
+      }
+      catch {
+        _handshakeDispatcher = null;
+        _listener.Stop ();
+        dispatcher.Stop (5000);
+        throw;
+      }
     }
 
     private void stop (ushort code, string reason)
     {
-      lock (_sync) {
-        if (_state != ServerState.Start)
+      if (!tryBeginShutdown ())
+        return;
+
+      var receivingStopped = false;
+      var completed = false;
+
+      try {
+        try {
+          var timeout = 5000;
+
+          receivingStopped = stopReceiving (timeout);
+        }
+        catch (Exception ex) {
+          _log.Fatal (ex.Message);
+          _log.Debug (ex.ToString ());
+        }
+
+        if (!receivingStopped) {
+          _log.Warn ("The server is still waiting for handshake workers to stop.");
           return;
+        }
 
-        _state = ServerState.ShuttingDown;
-      }
+        try {
+          _services.Stop (code, reason);
+        }
+        catch (Exception ex) {
+          _log.Fatal (ex.Message);
+          _log.Debug (ex.ToString ());
+        }
 
-      try {
-        var timeout = 5000;
-
-        stopReceiving (timeout);
+        completed = true;
       }
-      catch (Exception ex) {
-        _log.Fatal (ex.Message);
-        _log.Debug (ex.ToString ());
+      finally {
+        endShutdown (completed);
       }
-
-      try {
-        _services.Stop (code, reason);
-      }
-      catch (Exception ex) {
-        _log.Fatal (ex.Message);
-        _log.Debug (ex.ToString ());
-      }
-
-      _state = ServerState.Stop;
     }
 
-    private void stopReceiving (int millisecondsTimeout)
+    private bool stopReceiving (int millisecondsTimeout)
     {
       _listener.Stop ();
-      _receiveThread.Join (millisecondsTimeout);
+
+      var dispatcherStopped = stopHandshakeDispatcher (millisecondsTimeout);
+      var receiverStopped = _receiveThread.Join (millisecondsTimeout);
+
+      return dispatcherStopped && receiverStopped;
+    }
+
+    private void logHandshakeRejection ()
+    {
+      var count = Interlocked.Increment (ref _rejectedHandshakeCount);
+
+      if (count != 1 && count % 256 != 0)
+        return;
+
+      var msg = String.Format (
+                  "The pending WebSocket handshake queue is full; connections rejected since start: {0}.",
+                  count
+                );
+
+      _log.Warn (msg);
+    }
+
+    private bool stopHandshakeDispatcher (int millisecondsTimeout)
+    {
+      var dispatcher = _handshakeDispatcher;
+
+      if (dispatcher == null)
+        return true;
+
+      if (!dispatcher.Stop (millisecondsTimeout))
+        return false;
+
+      if (ReferenceEquals (_handshakeDispatcher, dispatcher))
+        _handshakeDispatcher = null;
+
+      return true;
+    }
+
+    private void endShutdown (bool completed)
+    {
+      lock (_sync) {
+        if (completed)
+          _state = ServerState.Stop;
+
+        _shutdownInProgress = false;
+      }
+    }
+
+    private bool tryBeginShutdown ()
+    {
+      lock (_sync) {
+        if (_state == ServerState.Start)
+          _state = ServerState.ShuttingDown;
+        else if (_state != ServerState.ShuttingDown)
+          return false;
+
+        if (_shutdownInProgress)
+          return false;
+
+        _shutdownInProgress = true;
+        return true;
+      }
     }
 
     private static bool tryCreateUri (
@@ -1221,11 +1398,12 @@ namespace WebSocketSharp.Server
     /// Stops receiving incoming handshake requests.
     /// </summary>
     /// <remarks>
-    /// This method works if the current state of the server is Start.
+    /// This method works if the current state of the server is Start or if a
+    /// previous shutdown is still waiting for handshake workers to finish.
     /// </remarks>
     public void Stop ()
     {
-      if (_state != ServerState.Start)
+      if (_state != ServerState.Start && _state != ServerState.ShuttingDown)
         return;
 
       stop (1001, String.Empty);
