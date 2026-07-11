@@ -14,6 +14,10 @@ namespace WebSocketSharp.StressTests
   [Category ("Stress")]
   public sealed class ConnectStormStressTests
   {
+    private const int ConnectionPending = 0;
+    private const int ConnectionOpened = 1;
+    private const int ConnectionFailed = 2;
+    private const int ConnectionClosedBeforeOpen = 3;
     private const int DefaultClientCount = 50;
     private const int DefaultTimeoutSeconds = 60;
 
@@ -27,23 +31,55 @@ namespace WebSocketSharp.StressTests
       var elapsed = Stopwatch.StartNew ();
 
       using (var server = StressLoopbackServer.Start (s => s.AddWebSocketService<EchoBehavior> ("/echo")))
+      using (var connectionAttempts = new CountdownEvent (clientCount))
       using (var opened = new CountdownEvent (clientCount))
       using (var closed = new CountdownEvent (clientCount)) {
         var sessions = server.WebSocketServices["/echo"].Sessions;
         var clients = new List<WebSocket> (clientCount);
         var errors = new ConcurrentQueue<string> ();
-        var openSeen = new int[clientCount];
+        var connectionStates = new int[clientCount];
         var closeSeen = new int[clientCount];
 
         try {
           for (var i = 0; i < clientCount; i++)
-            clients.Add (CreateClient (server.GetUrl ("/echo"), i, opened, closed, errors, openSeen, closeSeen));
+            clients.Add (
+              CreateClient (
+                server.GetUrl ("/echo"),
+                i,
+                connectionAttempts,
+                opened,
+                closed,
+                errors,
+                connectionStates,
+                closeSeen
+              )
+            );
 
-          foreach (var client in clients)
-            client.ConnectAsync ();
+          for (var clientIndex = 0; clientIndex < clients.Count; clientIndex++) {
+            try {
+              clients[clientIndex].ConnectAsync ();
+            }
+            catch (Exception ex) {
+              if (Interlocked.CompareExchange (
+                    ref connectionStates[clientIndex],
+                    ConnectionFailed,
+                    ConnectionPending
+                  ) == ConnectionPending)
+                connectionAttempts.Signal ();
 
-          WaitFor (opened, timeout, "Not all connect-storm clients opened.");
+              errors.Enqueue (
+                String.Format ("Client {0} ConnectAsync threw: {1}", clientIndex, ex)
+              );
+            }
+          }
+
+          WaitFor (
+            connectionAttempts,
+            timeout,
+            "Not all connect-storm clients reached an open or failed state."
+          );
           AssertNoErrors (errors);
+          Assert.That (opened.CurrentCount, Is.EqualTo (0), "Not all connect-storm clients opened.");
 
           WaitUntil (
             () => sessions.Count == clientCount,
@@ -79,25 +115,56 @@ namespace WebSocketSharp.StressTests
     private static WebSocket CreateClient (
       string url,
       int clientIndex,
+      CountdownEvent connectionAttempts,
       CountdownEvent opened,
       CountdownEvent closed,
       ConcurrentQueue<string> errors,
-      int[] openSeen,
+      int[] connectionStates,
       int[] closeSeen
     )
     {
       var client = new WebSocket (url);
 
       client.OnOpen += (sender, e) => {
-        if (Interlocked.Exchange (ref openSeen[clientIndex], 1) == 0)
-          opened.Signal ();
+        if (Interlocked.CompareExchange (
+              ref connectionStates[clientIndex],
+              ConnectionOpened,
+              ConnectionPending
+            ) != ConnectionPending)
+          return;
+
+        opened.Signal ();
+        connectionAttempts.Signal ();
       };
 
       client.OnError += (sender, e) => {
+        if (Interlocked.CompareExchange (
+              ref connectionStates[clientIndex],
+              ConnectionFailed,
+              ConnectionPending
+            ) == ConnectionPending)
+          connectionAttempts.Signal ();
+
         errors.Enqueue (String.Format ("Client {0} error: {1}", clientIndex, e.Exception ?? new Exception (e.Message)));
       };
 
       client.OnClose += (sender, e) => {
+        if (Interlocked.CompareExchange (
+              ref connectionStates[clientIndex],
+              ConnectionClosedBeforeOpen,
+              ConnectionPending
+            ) == ConnectionPending) {
+          errors.Enqueue (
+            String.Format (
+              "Client {0} closed before opening. Code: {1}; reason: {2}",
+              clientIndex,
+              e.Code,
+              e.Reason
+            )
+          );
+          connectionAttempts.Signal ();
+        }
+
         if (Interlocked.Exchange (ref closeSeen[clientIndex], 1) == 0)
           closed.Signal ();
       };

@@ -14,10 +14,15 @@ namespace WebSocketSharp.StressTests
   [Category ("Stress")]
   public sealed class SustainedEchoStressTests
   {
+    private const int ConnectionPending = 0;
+    private const int ConnectionOpened = 1;
+    private const int ConnectionFailed = 2;
+    private const int ConnectionClosedBeforeOpen = 3;
     private const int DefaultClientCount = 100;
     private const int DefaultInFlightPerClient = 1;
     private const int DefaultMessagesPerClient = 1000;
     private const int DefaultTimeoutSeconds = 300;
+    private static readonly TimeSpan ConnectionProgressInterval = TimeSpan.FromSeconds (5);
 
     [Test]
     public void SustainedClientsCanContinuouslyEchoMessagesWithoutQueueOverflow ()
@@ -50,10 +55,10 @@ namespace WebSocketSharp.StressTests
         var clients = new List<WebSocket> (clientCount);
         var echoed = new ConcurrentDictionary<string, bool> (StringComparer.Ordinal);
         var errors = new ConcurrentQueue<string> ();
+        var connectionStates = new int[clientCount];
         var sentCounts = new int[clientCount];
         var receivedCounts = new int[clientCount];
         var sendLocks = new object[clientCount];
-        var openSeen = new int[clientCount];
         var closeSeen = new int[clientCount];
         Action<int> sendNext = null;
 
@@ -103,27 +108,78 @@ namespace WebSocketSharp.StressTests
                 closed,
                 echoed,
                 errors,
+                connectionStates,
                 receivedCounts,
-                openSeen,
                 closeSeen,
                 sendNext
               )
             );
           }
 
+          var connectElapsed = Stopwatch.StartNew ();
+          var nextProgress = ConnectionProgressInterval;
+
           for (var clientIndex = 0; clientIndex < clients.Count; clientIndex++) {
             var currentClient = clientIndex;
 
-            clients[currentClient].ConnectAsync ();
+            try {
+              clients[currentClient].ConnectAsync ();
+            }
+            catch (Exception ex) {
+              Interlocked.CompareExchange (
+                ref connectionStates[currentClient],
+                ConnectionFailed,
+                ConnectionPending
+              );
+              errors.Enqueue (
+                String.Format ("Client {0} ConnectAsync threw: {1}", currentClient, ex)
+              );
+            }
 
             WaitUntil (
-              () => openSeen[currentClient] != 0,
-              timeout,
-              String.Format ("The sustained stress client {0} did not open.", currentClient)
+              () => Volatile.Read (ref connectionStates[currentClient]) != ConnectionPending,
+              GetRemainingTimeout (timeout, connectElapsed),
+              String.Format (
+                "The sustained stress client {0} did not finish connecting. Opened: {1}/{2}; errors: {3}; server sessions: {4}; connect elapsed: {5}.",
+                currentClient,
+                clientCount - opened.CurrentCount,
+                clientCount,
+                errors.Count,
+                sessions.Count,
+                connectElapsed.Elapsed
+              )
             );
 
             AssertNoErrors (errors);
+
+            Assert.That (
+              Volatile.Read (ref connectionStates[currentClient]),
+              Is.EqualTo (ConnectionOpened),
+              String.Format ("The sustained stress client {0} did not reach the open state.", currentClient)
+            );
+
+            if (connectElapsed.Elapsed < nextProgress)
+              continue;
+
+            TestContext.Progress.WriteLine (
+              "Sustained connect progress: opened {0}/{1}, errors {2}, server sessions {3}, elapsed {4}.",
+              clientCount - opened.CurrentCount,
+              clientCount,
+              errors.Count,
+              sessions.Count,
+              connectElapsed.Elapsed
+            );
+            nextProgress = connectElapsed.Elapsed + ConnectionProgressInterval;
           }
+
+          connectElapsed.Stop ();
+          TestContext.WriteLine (
+            "Sustained connect phase completed: opened {0}/{1}, server sessions {2}, elapsed {3}.",
+            clientCount - opened.CurrentCount,
+            clientCount,
+            sessions.Count,
+            connectElapsed.Elapsed
+          );
 
           Assert.That (opened.CurrentCount, Is.EqualTo (0));
 
@@ -201,8 +257,8 @@ namespace WebSocketSharp.StressTests
       CountdownEvent closed,
       ConcurrentDictionary<string, bool> echoed,
       ConcurrentQueue<string> errors,
+      int[] connectionStates,
       int[] receivedCounts,
-      int[] openSeen,
       int[] closeSeen,
       Action<int> sendNext
     )
@@ -210,8 +266,14 @@ namespace WebSocketSharp.StressTests
       var client = new WebSocket (url);
 
       client.OnOpen += (sender, e) => {
-        if (Interlocked.Exchange (ref openSeen[clientIndex], 1) == 0)
-          opened.Signal ();
+        if (Interlocked.CompareExchange (
+              ref connectionStates[clientIndex],
+              ConnectionOpened,
+              ConnectionPending
+            ) != ConnectionPending)
+          return;
+
+        opened.Signal ();
       };
 
       client.OnMessage += (sender, e) => {
@@ -262,12 +324,31 @@ namespace WebSocketSharp.StressTests
       };
 
       client.OnError += (sender, e) => {
+        Interlocked.CompareExchange (
+          ref connectionStates[clientIndex],
+          ConnectionFailed,
+          ConnectionPending
+        );
         errors.Enqueue (
           String.Format ("Client {0} error: {1}", clientIndex, e.Exception ?? new Exception (e.Message))
         );
       };
 
       client.OnClose += (sender, e) => {
+        if (Interlocked.CompareExchange (
+              ref connectionStates[clientIndex],
+              ConnectionClosedBeforeOpen,
+              ConnectionPending
+            ) == ConnectionPending)
+          errors.Enqueue (
+            String.Format (
+              "Client {0} closed before opening. Code: {1}; reason: {2}",
+              clientIndex,
+              e.Code,
+              e.Reason
+            )
+          );
+
         if (Interlocked.Exchange (ref closeSeen[clientIndex], 1) == 0)
           closed.Signal ();
       };
@@ -297,6 +378,13 @@ namespace WebSocketSharp.StressTests
         return defaultValue;
 
       return parsed;
+    }
+
+    private static TimeSpan GetRemainingTimeout (TimeSpan timeout, Stopwatch elapsed)
+    {
+      var remaining = timeout - elapsed.Elapsed;
+
+      return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     private static void WaitFor (CountdownEvent signal, TimeSpan timeout, string message)
