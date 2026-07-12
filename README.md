@@ -45,7 +45,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `123/123` NUnit tests passed on `net472`.
+- Repository normal suite: `129/129` NUnit tests passed on `net472`.
 - Repository stress suite: `10/10` stress tests passed on `net472`.
 - Examples build: legacy `Example`, `Example2`, `Example3` and modern console
   examples under `Examples` build on `net472`.
@@ -76,6 +76,11 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
   redirected origin does not restore the original secrets.
 - Proxy redirects: Digest proxy authentication recomputes the `CONNECT`
   authority after a cross-origin redirect instead of reusing the first target.
+- Handshake log safety: Debug logs preserve request/status lines, header names,
+  and normalized structural WebSocket facts while redacting request paths,
+  query values, authentication, cookies, custom header values, untrusted reason
+  phrases, response secrets, and HTTP error bodies on client,
+  `WebSocketServer`, and `HttpServer` paths.
 - Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
@@ -211,6 +216,11 @@ enabled. A cross-origin redirect does not carry HTTP authentication, cookies,
 custom user headers, or TLS client certificates to the new origin. The same
 isolation is retained if the same `WebSocket` instance reconnects after the
 redirect.
+
+Built-in handshake Debug logs are sanitized. Public HTTP/WebSocket context
+`ToString()` methods retain their historical raw formatting for compatibility;
+applications should not write those values to production logs without their
+own redaction.
 
 ## Usage ##
 

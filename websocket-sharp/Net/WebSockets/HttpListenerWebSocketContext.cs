@@ -69,6 +69,12 @@ namespace WebSocketSharp.Net.WebSockets
       }
     }
 
+    internal HttpListenerRequest Request {
+      get {
+        return _context.Request;
+      }
+    }
+
     internal Socket Socket {
       get {
         return _context.Connection.Socket;

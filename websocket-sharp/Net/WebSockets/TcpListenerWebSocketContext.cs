@@ -118,6 +118,12 @@ namespace WebSocketSharp.Net.WebSockets
       }
     }
 
+    internal HttpRequest Request {
+      get {
+        return _request;
+      }
+    }
+
     internal Socket Socket {
       get {
         return _tcpClient.Client;

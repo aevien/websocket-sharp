@@ -1396,7 +1396,7 @@ namespace WebSocketSharp
 
       if (!checkHandshakeRequest (_context, out msg)) {
         _log.Error (msg);
-        _log.Debug (_context.ToString ());
+        _log.Debug (HandshakeLogFormatter.FormatRequest (_context));
 
         refuseHandshake (1002, "A handshake error has occurred.");
 
@@ -1405,7 +1405,7 @@ namespace WebSocketSharp
 
       if (!customCheckHandshakeRequest (_context, out msg)) {
         _log.Error (msg);
-        _log.Debug (_context.ToString ());
+        _log.Debug (HandshakeLogFormatter.FormatRequest (_context));
 
         refuseHandshake (1002, "A handshake error has occurred.");
 
@@ -2165,7 +2165,7 @@ namespace WebSocketSharp
 
       var res = sendHandshakeRequest (0, true);
 
-      _log.Debug (res.ToString ());
+      _log.Debug (HandshakeLogFormatter.FormatResponse (res));
 
       _handshakeResponseHeaders = res.Headers;
       _handshakeResponseCookies = res.Cookies;
@@ -3090,7 +3090,7 @@ namespace WebSocketSharp
     {
       var req = createHandshakeRequest (includeSensitiveHeaders);
 
-      _log.Debug (req.ToString ());
+      _log.Debug (HandshakeLogFormatter.FormatRequest (req));
 
       var timeout = getConnectionTimeoutMilliseconds ();
       var res = req.GetResponse (_stream, timeout);
@@ -3138,7 +3138,7 @@ namespace WebSocketSharp
           );
         }
 
-        _log.Debug (req.ToString ());
+        _log.Debug (HandshakeLogFormatter.FormatRequest (req));
 
         res = req.GetResponse (_stream, timeout);
       }
