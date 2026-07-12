@@ -45,7 +45,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `109/109` NUnit tests passed on `net472`.
+- Repository normal suite: `123/123` NUnit tests passed on `net472`.
 - Repository stress suite: `10/10` stress tests passed on `net472`.
 - Examples build: legacy `Example`, `Example2`, `Example3` and modern console
   examples under `Examples` build on `net472`.
@@ -68,6 +68,14 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Handshake parser limits: oversized handshake headers, too-long request/header lines, and header-count flooding are rejected before a WebSocket session starts.
 - Handshake body limits: upgrade requests and successful handshake responses reject any body before reading it; HTTP error bodies stop at `64 KiB`; declared `1 GiB`, chunked, and `101 Content-Length: 1` probes all transmitted `0` body bytes before disconnect.
 - Chunked challenge compatibility: a chunked `407 Proxy Authentication Required` response is handled by closing the unusable connection, reconnecting with Basic credentials, opening the tunnel, and completing echo.
+- Redirect policy: status codes `301`, `302`, `303`, `307`, and `308`, relative
+  locations, bounded loops, redirected Digest paths, reconnects, cross-origin
+  WSS host changes, and explicit WSS-to-WS downgrade opt-in are covered.
+- Redirect credential isolation: HTTP credentials, cookies, user headers, and
+  TLS client certificates are not forwarded across origins; reconnecting to a
+  redirected origin does not restore the original secrets.
+- Proxy redirects: Digest proxy authentication recomputes the `CONNECT`
+  authority after a cross-origin redirect instead of reusing the first target.
 - Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
@@ -147,6 +155,8 @@ resource risks in old WebSocket stacks:
 - `WebSocket.MaxMessageEventQueueLength`: default `1024`
 - `WebSocket.MaxAsyncSendQueueLength`: default `256`
 - `WebSocket.ConnectionTimeout`: default `10 seconds`
+- `WebSocket.MaxRedirections`: default `5`, valid range `0..100`
+- `WebSocket.AllowInsecureRedirection`: default `false`
 - `WebSocketServer.HandshakeTimeout`: default `10 seconds`
 - `HttpServer.HandshakeTimeout`: default `10 seconds`
 - `WebSocketServer.MaxConcurrentHandshakes`: default `128`
@@ -194,6 +204,13 @@ both the TLS handshake and the first HTTP/WebSocket request.
 `MaxConcurrentHandshakes` and `MaxPendingHandshakes` bound only connections
 that are still completing the WebSocket handshake. They do not limit already
 established sessions or total CCU. Configure both properties before `Start()`.
+
+Client redirects remain opt-in through `EnableRedirection`. Redirects from
+`wss://` to `ws://` are rejected unless `AllowInsecureRedirection` is explicitly
+enabled. A cross-origin redirect does not carry HTTP authentication, cookies,
+custom user headers, or TLS client certificates to the new origin. The same
+isolation is retained if the same `WebSocket` instance reconnects after the
+redirect.
 
 ## Usage ##
 
@@ -858,7 +875,8 @@ handshake concurrency, bounded queues, payload limits, and graceful shutdown.
 
 `Examples/SecureAndProxyClient` demonstrates secure client options: WSS
 certificate validation, explicit certificate thumbprint pinning, proxy,
-compression, origin, user headers, and connection timeout.
+compression, origin, user headers, connection timeout, and bounded redirect
+policy.
 
 ### Examples/UnityClientLifecycle ###
 

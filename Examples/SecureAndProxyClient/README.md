@@ -16,6 +16,11 @@ The example covers:
 - `Compression` via `CompressionMethod.Deflate`, with `--no-compression` to
   disable the request.
 - `ConnectionTimeout`.
+- Bounded opt-in redirects with `EnableRedirection` and `MaxRedirections`
+  (`0..100`, default `5`). Cross-origin redirects omit HTTP credentials,
+  cookies, user headers, and TLS client certificates, including reconnects.
+  Secure `wss://` to insecure `ws://` downgrade remains blocked unless
+  `--allow-insecure-redirect` is supplied explicitly.
 - `Origin` and `SetUserHeader`.
 
 ## Build

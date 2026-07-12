@@ -38,6 +38,12 @@ namespace SecureAndProxyClient
         // also the TLS handshake.
         ws.ConnectionTimeout = options.ConnectionTimeout;
 
+        // Redirects are opt-in, bounded, and do not permit wss:// to ws://
+        // downgrade unless it is explicitly requested.
+        ws.EnableRedirection = options.FollowRedirects;
+        ws.MaxRedirections = options.MaxRedirections;
+        ws.AllowInsecureRedirection = options.AllowInsecureRedirection;
+
         if (!String.IsNullOrEmpty (options.Origin))
           ws.Origin = options.Origin;
 
@@ -57,7 +63,7 @@ namespace SecureAndProxyClient
           ws.SslConfiguration.ServerCertificateValidationCallback =
             (sender, certificate, chain, sslPolicyErrors) =>
               ValidateServerCertificate (
-                options.ServerUri,
+                ws.Url,
                 options.AllowLocalDevCertificate,
                 options.TrustedCertificateThumbprint,
                 certificate,
@@ -191,6 +197,9 @@ namespace SecureAndProxyClient
       Console.WriteLine ("  --proxy-user <username>           Proxy authentication user.");
       Console.WriteLine ("  --proxy-password <password>       Proxy authentication password.");
       Console.WriteLine ("  --timeout <seconds>               Connection timeout. Default: 10.");
+      Console.WriteLine ("  --follow-redirects                Follow at most 5 redirects.");
+      Console.WriteLine ("  --max-redirects <0..100>          Override the redirect limit.");
+      Console.WriteLine ("  --allow-insecure-redirect         Permit wss:// to ws:// downgrade.");
       Console.WriteLine ("  --no-compression                  Do not request permessage-deflate.");
       Console.WriteLine ("  --allow-local-dev-cert            For wss:// localhost/loopback only,");
       Console.WriteLine ("                                    allow certificate chain errors.");
@@ -208,7 +217,10 @@ namespace SecureAndProxyClient
   internal sealed class ClientOptions
   {
     public bool AllowLocalDevCertificate { get; private set; }
+    public bool AllowInsecureRedirection { get; private set; }
     public TimeSpan ConnectionTimeout { get; private set; }
+    public bool FollowRedirects { get; private set; }
+    public int MaxRedirections { get; private set; }
     public string Origin { get; private set; }
     public string ProxyPassword { get; private set; }
     public string ProxyUrl { get; private set; }
@@ -223,6 +235,7 @@ namespace SecureAndProxyClient
     {
       options = new ClientOptions {
         ConnectionTimeout = TimeSpan.FromSeconds (10),
+        MaxRedirections = 5,
         UseCompression = true,
         UserHeaders = new List<KeyValuePair<string, string>> ()
       };
@@ -243,8 +256,34 @@ namespace SecureAndProxyClient
           continue;
         }
 
+        if (arg == "--allow-insecure-redirect") {
+          options.AllowInsecureRedirection = true;
+          options.FollowRedirects = true;
+          continue;
+        }
+
+        if (arg == "--follow-redirects") {
+          options.FollowRedirects = true;
+          continue;
+        }
+
         if (arg == "--no-compression") {
           options.UseCompression = false;
+          continue;
+        }
+
+        if (arg == "--max-redirects") {
+          string value;
+          int count;
+
+          if (!TryReadValue (args, ref i, out value)
+              || !Int32.TryParse (value, out count)
+              || count < 0
+              || count > 100)
+            return false;
+
+          options.FollowRedirects = true;
+          options.MaxRedirections = count;
           continue;
         }
 

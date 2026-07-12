@@ -752,6 +752,7 @@ type class WebSocketSharp.WebSocket
   field static System.Int64 DefaultMaxMessagePayloadLength
   field static System.TimeSpan DefaultFrameReadTimeout
   ctor .ctor(System.String,params System.String[])
+  property System.Boolean AllowInsecureRedirection get;set;
   property System.Boolean EmitOnPing get;set;
   property System.Boolean EnableRedirection get;set;
   property System.Boolean IsAlive get;
@@ -760,6 +761,7 @@ type class WebSocketSharp.WebSocket
   property System.Collections.Specialized.NameValueCollection HandshakeResponseHeaders get;
   property System.Int32 MaxAsyncSendQueueLength get;set;
   property System.Int32 MaxMessageEventQueueLength get;set;
+  property System.Int32 MaxRedirections get;set;
   property System.Int64 MaxFramePayloadLength get;set;
   property System.Int64 MaxMessagePayloadLength get;set;
   property System.String Extensions get;

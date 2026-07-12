@@ -146,7 +146,11 @@ namespace WebSocketSharp
 
     public bool IsRedirect {
       get {
-        return _code == 301 || _code == 302;
+        return _code == 301
+               || _code == 302
+               || _code == 303
+               || _code == 307
+               || _code == 308;
       }
     }
 

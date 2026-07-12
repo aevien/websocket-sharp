@@ -16,7 +16,8 @@ namespace WebSocketSharp.Tests
       Reject,
       Tunnel,
       BasicAuthTunnel,
-      BasicAuthChunkedTunnel
+      BasicAuthChunkedTunnel,
+      DigestAuthTunnel
     }
 
     private readonly object _sync = new object ();
@@ -45,6 +46,8 @@ namespace WebSocketSharp.Tests
 
     public int ConnectRequestCount { get; private set; }
 
+    public string LastConnectTarget { get; private set; }
+
     public string LastProxyAuthorization { get; private set; }
 
     public int Port { get; private set; }
@@ -59,6 +62,11 @@ namespace WebSocketSharp.Tests
     public static LoopbackProxyServer StartBasicAuthChunkedTunnel ()
     {
       return new LoopbackProxyServer (ProxyMode.BasicAuthChunkedTunnel);
+    }
+
+    public static LoopbackProxyServer StartDigestAuthTunnel ()
+    {
+      return new LoopbackProxyServer (ProxyMode.DigestAuthTunnel);
     }
 
     public static LoopbackProxyServer StartRejecting ()
@@ -161,12 +169,15 @@ namespace WebSocketSharp.Tests
 
         var stream = client.GetStream ();
         var request = ReadHeader (stream);
+        var connectTarget = GetConnectTarget (request);
+        var proxyAuthorization = GetHeaderValue (request, "Proxy-Authorization");
 
         lock (_sync) {
           ConnectRequestCount++;
-          LastProxyAuthorization = GetHeaderValue (request, "Proxy-Authorization");
+          LastConnectTarget = connectTarget;
+          LastProxyAuthorization = proxyAuthorization;
 
-          if (!String.IsNullOrEmpty (LastProxyAuthorization))
+          if (!String.IsNullOrEmpty (proxyAuthorization))
             AuthorizedConnectCount++;
         }
 
@@ -177,9 +188,24 @@ namespace WebSocketSharp.Tests
           return;
         }
 
+        if (_mode == ProxyMode.DigestAuthTunnel
+            && String.IsNullOrEmpty (proxyAuthorization)) {
+          WriteResponse (
+            stream,
+            "HTTP/1.1 407 Proxy Authentication Required",
+            "Proxy-Authenticate: Digest realm=\"loopback\", "
+            + "nonce=\"proxy-nonce\", algorithm=MD5, qop=\"auth\"",
+            "Connection: close"
+          );
+
+          client.Close ();
+
+          return;
+        }
+
         if ((_mode == ProxyMode.BasicAuthTunnel
              || _mode == ProxyMode.BasicAuthChunkedTunnel)
-            && String.IsNullOrEmpty (LastProxyAuthorization)) {
+            && String.IsNullOrEmpty (proxyAuthorization)) {
           if (_mode == ProxyMode.BasicAuthChunkedTunnel) {
             WriteResponse (
               stream,
@@ -250,6 +276,17 @@ namespace WebSocketSharp.Tests
       }
 
       return null;
+    }
+
+    private static string GetConnectTarget (string request)
+    {
+      var requestLine = request.Split (new[] { "\r\n" }, StringSplitOptions.None)[0];
+      var parts = requestLine.Split (new[] { ' ' }, 3);
+
+      if (parts.Length != 3 || parts[0] != "CONNECT")
+        throw new InvalidOperationException ("The proxy request is not CONNECT.");
+
+      return parts[1];
     }
 
     private static void ParseConnectTarget (

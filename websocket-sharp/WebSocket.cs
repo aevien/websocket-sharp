@@ -80,7 +80,10 @@ namespace WebSocketSharp
     private CompressionMethod              _compression;
     private WebSocketContext               _context;
     private CookieCollection               _cookies;
+    private Uri                            _cookiesOrigin;
     private NetworkCredential              _credentials;
+    private Uri                            _credentialsOrigin;
+    private bool                           _allowInsecureRedirection;
     private bool                           _emitOnPing;
     private static readonly byte[]         _emptyBytes;
     private bool                           _enableRedirection;
@@ -111,6 +114,8 @@ namespace WebSocketSharp
     private long                           _maxFramePayloadLength;
     private int                            _maxMessageEventQueueLength;
     private long                           _maxMessagePayloadLength;
+    private int                            _maxRedirections;
+    private const int                     _maxRedirectionLimit = 100;
     private static readonly int            _maxRetryCountForConnect;
     private Action<MessageEventArgs>       _message;
     private Queue<MessageEventArgs>        _messageEventQueue;
@@ -129,10 +134,12 @@ namespace WebSocketSharp
     private bool                           _secure;
     private Socket                         _socket;
     private ClientSslConfiguration         _sslConfig;
+    private Uri                            _sslConfigOrigin;
     private Stream                         _stream;
     private TcpClient                      _tcpClient;
     private Uri                            _uri;
     private WebHeaderCollection            _userHeaders;
+    private Uri                            _userHeadersOrigin;
     private const string                   _version = "13";
     private TimeSpan                       _waitTime;
     private int                            _asyncSendQueueLength;
@@ -421,6 +428,38 @@ namespace WebSocketSharp
     #endregion
 
     #region Public Properties
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a secure client can follow a
+    /// redirect from <c>wss</c> to <c>ws</c>.
+    /// </summary>
+    /// <remarks>
+    /// The default value is <see langword="false"/>. The set operation is not
+    /// available when the current state is neither New nor Closed.
+    /// </remarks>
+    public bool AllowInsecureRedirection {
+      get {
+        return _allowInsecureRedirection;
+      }
+
+      set {
+        if (!_client) {
+          var msg = "The interface is not for the client.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _allowInsecureRedirection = value;
+        }
+      }
+    }
 
     /// <summary>
     /// Gets or sets the compression method used to compress a message.
@@ -854,6 +893,47 @@ namespace WebSocketSharp
           }
 
           _maxMessagePayloadLength = value;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the maximum number of redirects followed by the client.
+    /// </summary>
+    /// <remarks>
+    /// The default value is 5. Valid values are from 0 through 100. The set
+    /// operation is not available when the current state is neither New nor
+    /// Closed.
+    /// </remarks>
+    public int MaxRedirections {
+      get {
+        return _maxRedirections;
+      }
+
+      set {
+        if (!_client) {
+          var msg = "The interface is not for the client.";
+
+          throw new InvalidOperationException (msg);
+        }
+
+        if (value < 0 || value > _maxRedirectionLimit) {
+          var msg = String.Format (
+                      "Not between 0 and {0}.",
+                      _maxRedirectionLimit
+                    );
+
+          throw new ArgumentOutOfRangeException ("value", msg);
+        }
+
+        lock (_forState) {
+          if (!canSet ()) {
+            var msg = "The current state of the interface is neither New nor Closed.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          _maxRedirections = value;
         }
       }
     }
@@ -1876,12 +1956,14 @@ namespace WebSocketSharp
       if (_credentials == null)
         return null;
 
+      var credentials = getCredentialsForCurrentUri ();
+
       if (_authChallenge == null)
-        return _preAuth ? new AuthenticationResponse (_credentials) : null;
+        return _preAuth ? new AuthenticationResponse (credentials) : null;
 
       var ret = new AuthenticationResponse (
                   _authChallenge,
-                  _credentials,
+                  credentials,
                   _nonceCount
                 );
 
@@ -1925,7 +2007,7 @@ namespace WebSocketSharp
     }
 
     // As client
-    private HttpRequest createHandshakeRequest ()
+    private HttpRequest createHandshakeRequest (bool includeSensitiveHeaders)
     {
       var ret = HttpRequest.CreateWebSocketHandshakeRequest (_uri);
 
@@ -1947,19 +2029,33 @@ namespace WebSocketSharp
       if (_hasExtension)
         headers["Sec-WebSocket-Extensions"] = exts;
 
-      var ares = createAuthenticationResponse ();
+      var includeCredentials = canSendSensitiveData (
+                                 includeSensitiveHeaders,
+                                 _credentialsOrigin
+                               );
+      var ares = includeCredentials ? createAuthenticationResponse () : null;
 
       if (ares != null)
         headers["Authorization"] = ares.ToString ();
 
       var hasUserHeader = _userHeaders != null && _userHeaders.Count > 0;
 
-      if (hasUserHeader)
+      var includeUserHeaders = canSendSensitiveData (
+                                 includeSensitiveHeaders,
+                                 _userHeadersOrigin
+                               );
+
+      if (includeUserHeaders && hasUserHeader)
         headers.Add (_userHeaders);
 
       var hasCookie = _cookies != null && _cookies.Count > 0;
 
-      if (hasCookie)
+      var includeCookies = canSendSensitiveData (
+                             includeSensitiveHeaders,
+                             _cookiesOrigin
+                           );
+
+      if (includeCookies && hasCookie)
         ret.SetCookies (_cookies);
 
       return ret;
@@ -2065,9 +2161,9 @@ namespace WebSocketSharp
     // As client
     private bool doHandshake ()
     {
-      setClientStream ();
+      setClientStream (canSendSensitiveData (true, _sslConfigOrigin));
 
-      var res = sendHandshakeRequest ();
+      var res = sendHandshakeRequest (0, true);
 
       _log.Debug (res.ToString ());
 
@@ -2096,8 +2192,11 @@ namespace WebSocketSharp
           _compression = CompressionMethod.None;
       }
 
-      if (_handshakeResponseCookies.Count > 0)
+      if (_handshakeResponseCookies.Count > 0
+          && (_cookiesOrigin == null || isSameOrigin (_cookiesOrigin, _uri))) {
+        _cookiesOrigin = _uri;
         Cookies.SetOrRemove (_handshakeResponseCookies);
+      }
 
       return true;
     }
@@ -2139,10 +2238,22 @@ namespace WebSocketSharp
 
     private ClientSslConfiguration getSslConfiguration ()
     {
-      if (_sslConfig == null)
+      if (_sslConfig == null) {
         _sslConfig = new ClientSslConfiguration (_uri.DnsSafeHost);
+        _sslConfigOrigin = _uri;
+      }
 
       return _sslConfig;
+    }
+
+    // As client
+    private NetworkCredential getCredentialsForCurrentUri ()
+    {
+      return new NetworkCredential (
+               _credentials.Username,
+               _credentials.Password,
+               _uri.PathAndQuery
+             );
     }
 
     // As client
@@ -2170,6 +2281,7 @@ namespace WebSocketSharp
       _maxFramePayloadLength = DefaultMaxFramePayloadLength;
       _maxMessageEventQueueLength = DefaultMaxMessageEventQueueLength;
       _maxMessagePayloadLength = DefaultMaxMessagePayloadLength;
+      _maxRedirections = 5;
       _readyState = WebSocketState.New;
     }
 
@@ -2971,9 +3083,12 @@ namespace WebSocketSharp
     }
 
     // As client
-    private HttpResponse sendHandshakeRequest ()
+    private HttpResponse sendHandshakeRequest (
+      int redirectionCount,
+      bool includeSensitiveHeaders
+    )
     {
-      var req = createHandshakeRequest ();
+      var req = createHandshakeRequest (includeSensitiveHeaders);
 
       _log.Debug (req.ToString ());
 
@@ -2999,12 +3114,16 @@ namespace WebSocketSharp
 
         _authChallenge = achal;
 
-        if (_credentials == null)
+        if (_credentials == null
+            || !canSendSensitiveData (
+                  includeSensitiveHeaders,
+                  _credentialsOrigin
+                ))
           return res;
 
         var ares = new AuthenticationResponse (
                      _authChallenge,
-                     _credentials,
+                     getCredentialsForCurrentUri (),
                      _nonceCount
                    );
 
@@ -3014,7 +3133,9 @@ namespace WebSocketSharp
 
         if (res.CloseConnection) {
           releaseClientResources ();
-          setClientStream ();
+          setClientStream (
+            canSendSensitiveData (includeSensitiveHeaders, _sslConfigOrigin)
+          );
         }
 
         _log.Debug (req.ToString ());
@@ -3025,6 +3146,12 @@ namespace WebSocketSharp
       if (res.IsRedirect) {
         if (!_enableRedirection)
           return res;
+
+        if (redirectionCount >= _maxRedirections) {
+          _log.Debug ("The maximum number of redirects has been reached.");
+
+          return res;
+        }
 
         var val = res.Headers["Location"];
 
@@ -3037,10 +3164,23 @@ namespace WebSocketSharp
         Uri uri;
         string msg;
 
-        if (!val.TryCreateWebSocketUri (out uri, out msg)) {
+        if (!tryCreateRedirectUri (_uri, val, out uri, out msg)) {
           _log.Debug ("An invalid URL to redirect is located.");
 
           return res;
+        }
+
+        if (_secure && uri.Scheme == "ws" && !_allowInsecureRedirection) {
+          _log.Debug ("A redirect from wss to ws has been rejected.");
+
+          return res;
+        }
+
+        var sameOrigin = isSameOrigin (_uri, uri);
+
+        if (!sameOrigin) {
+          _authChallenge = null;
+          _nonceCount = 0;
         }
 
         releaseClientResources ();
@@ -3048,12 +3188,61 @@ namespace WebSocketSharp
         _uri = uri;
         _secure = uri.Scheme == "wss";
 
-        setClientStream ();
+        var includeSensitiveHeadersOnRedirect =
+          includeSensitiveHeaders && sameOrigin;
 
-        return sendHandshakeRequest ();
+        setClientStream (
+          canSendSensitiveData (
+            includeSensitiveHeadersOnRedirect,
+            _sslConfigOrigin
+          )
+        );
+
+        return sendHandshakeRequest (
+                 redirectionCount + 1,
+                 includeSensitiveHeadersOnRedirect
+               );
       }
 
       return res;
+    }
+
+    private bool canSendSensitiveData (bool allowedByRedirect, Uri origin)
+    {
+      return allowedByRedirect
+             && (origin == null || isSameOrigin (origin, _uri));
+    }
+
+    private static bool isSameOrigin (Uri first, Uri second)
+    {
+      return String.Equals (first.Scheme, second.Scheme, StringComparison.OrdinalIgnoreCase)
+             && String.Equals (
+                  first.DnsSafeHost,
+                  second.DnsSafeHost,
+                  StringComparison.OrdinalIgnoreCase
+                )
+             && first.Port == second.Port;
+    }
+
+    private static bool tryCreateRedirectUri (
+      Uri currentUri,
+      string location,
+      out Uri result,
+      out string message
+    )
+    {
+      result = null;
+      message = null;
+
+      Uri uri;
+
+      if (!Uri.TryCreate (currentUri, location, out uri)) {
+        message = "An invalid redirect URL.";
+
+        return false;
+      }
+
+      return uri.ToString ().TryCreateWebSocketUri (out result, out message);
     }
 
     // As client
@@ -3084,7 +3273,16 @@ namespace WebSocketSharp
           return res;
         }
 
-        var ares = new AuthenticationResponse (achal, _proxyCredentials, 0);
+        var credentials = new NetworkCredential (
+                            _proxyCredentials.Username,
+                            _proxyCredentials.Password,
+                            String.Format (
+                              "{0}:{1}",
+                              _uri.DnsSafeHost,
+                              _uri.Port
+                            )
+                          );
+        var ares = new AuthenticationResponse (achal, credentials, 0);
 
         req.Headers["Proxy-Authorization"] = ares.ToString ();
 
@@ -3102,7 +3300,7 @@ namespace WebSocketSharp
     }
 
     // As client
-    private void setClientStream ()
+    private void setClientStream (bool includeSensitiveCredentials)
     {
       if (_proxyUri != null) {
         _tcpClient = createTcpClient (_proxyUri.DnsSafeHost, _proxyUri.Port);
@@ -3122,15 +3320,27 @@ namespace WebSocketSharp
 
       if (_secure) {
         var conf = getSslConfiguration ();
-        var host = conf.TargetHost;
+        var host = _uri.DnsSafeHost;
 
-        if (host != _uri.DnsSafeHost) {
+        if (includeSensitiveCredentials
+            && !String.Equals (
+                  conf.TargetHost,
+                  host,
+                  StringComparison.OrdinalIgnoreCase
+                )) {
           var msg = "An invalid host name is specified.";
 
           throw new WebSocketException (
                   CloseStatusCode.TlsHandshakeFailure,
                   msg
                 );
+        }
+
+        if (!includeSensitiveCredentials) {
+          conf = new ClientSslConfiguration (conf);
+          conf.TargetHost = host;
+          conf.ClientCertificates = null;
+          conf.ClientCertificateSelectionCallback = null;
         }
 
         try {
@@ -4763,6 +4973,10 @@ namespace WebSocketSharp
           throw new InvalidOperationException (msg);
         }
 
+        if (_cookiesOrigin != null && !isSameOrigin (_cookiesOrigin, _uri))
+          _cookies = null;
+
+        _cookiesOrigin = _uri;
         Cookies.SetOrRemove (cookie);
       }
     }
@@ -4850,6 +5064,7 @@ namespace WebSocketSharp
 
         if (username.IsNullOrEmpty ()) {
           _credentials = null;
+          _credentialsOrigin = null;
           _preAuth = false;
 
           return;
@@ -4861,6 +5076,9 @@ namespace WebSocketSharp
                          _uri.PathAndQuery
                        );
 
+        _credentialsOrigin = _uri;
+        _authChallenge = null;
+        _nonceCount = 0;
         _preAuth = preAuth;
       }
     }
@@ -5083,6 +5301,11 @@ namespace WebSocketSharp
           throw new InvalidOperationException (msg);
         }
 
+        if (_userHeadersOrigin != null
+            && !isSameOrigin (_userHeadersOrigin, _uri))
+          _userHeaders = null;
+
+        _userHeadersOrigin = _uri;
         UserHeaders.Set (name, value);
       }
     }
