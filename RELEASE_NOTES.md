@@ -1,23 +1,33 @@
-# websocket-sharp v1.3.0
+# websocket-sharp v1.3.1
 
-This release continues the Unity/.NET 4.x modernization of the fork while
-preserving the existing `websocket-sharp` assembly identity.
+This patch release fixes ordering and lifecycle behavior for asynchronous sends
+while preserving the existing public API and Unity assembly identity.
 
 ## Highlights
 
-- Bounded server handshake execution with configurable active and pending
-  limits for both `WebSocketServer` and `HttpServer`.
-- Strict WebSocket handshake body policy: upgrade and successful handshake
-  bodies are rejected, while HTTP error bodies are capped at 64 KiB.
-- Bounded, opt-in redirect handling for status codes 301, 302, 303, 307, and
-  308, including relative locations and explicit WSS-to-WS downgrade control.
-- Cross-origin redirects no longer forward HTTP credentials, cookies, custom
-  headers, or TLS client certificates, including reconnect paths.
-- Digest authentication uses the redirected request path and current proxy
-  CONNECT authority.
-- Built-in handshake Debug logs redact request paths, queries, credentials,
-  cookies, custom values, response bodies, and reflected untrusted values.
-- Expanded `net472` unit, stress, public API, and Unity/IL2CPP static coverage.
+- Sequential `SendAsync` calls accepted by one physical connection are written
+  in FIFO order by a single bounded dispatcher.
+- Completion callbacks run independently from the network writer, so a slow or
+  throwing callback does not block later physical sends.
+- `MaxAsyncSendQueueLength` continues to bound queued, active, and
+  callback-pending operations.
+- Closing a connection rejects new sends and completes waiting operations with
+  `false` while disposing their payload streams.
+- Reconnect creates a fresh dispatcher. Data queued for an old connection
+  cannot be compressed or written through the new connection.
+- Regression coverage includes immediate binary sends from server `OnOpen`,
+  FIFO ordering, queue overflow, blocked and throwing callbacks, close/reconnect
+  cancellation, stale compressed payloads, and ordered concurrent-client stress.
+
+## Verification
+
+- `135/135` `net472` unit tests passed.
+- `10/10` `net472` stress tests passed.
+- Immediate server `OnOpen` probe: `1000/1000` first messages received.
+- FIFO probe: `20000/20000` sequential async-send pairs arrived in call order.
+- Sustained ordering stress: `100 CCU` completed `100000` ordered messages
+  without loss, duplication, ordering errors, or stranded sessions.
+- Public API snapshot and Unity/IL2CPP compatibility gates passed.
 
 ## Compatibility
 
@@ -27,11 +37,11 @@ preserving the existing `websocket-sharp` assembly identity.
 - WebGL: not supported by this managed TCP socket implementation.
 - Assembly name and strong name remain unchanged.
 - `AssemblyVersion` remains `1.0.2.32832` for existing Unity binary references.
-- File and product version: `1.3.0.0`.
+- File and product version: `1.3.1.0`.
 
 ## Assets
 
 - `websocket-sharp.dll`: the signed `net472` library.
-- `websocket-sharp-v1.3.0-unity-net472.zip`: DLL, license, README, and these
+- `websocket-sharp-v1.3.1-unity-net472.zip`: DLL, license, README, and these
   release notes.
 - `SHA256SUMS.txt`: SHA-256 checksums for the DLL and ZIP.
