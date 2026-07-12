@@ -40,10 +40,22 @@ namespace WebSocketSharp.StressTests
         var errors = new ConcurrentQueue<string> ();
         var openSeen = new int[clientCount];
         var closeSeen = new int[clientCount];
+        var nextMessageIndex = new int[clientCount];
 
         try {
           for (var i = 0; i < clientCount; i++)
-            clients.Add (CreateClient (server.GetUrl ("/echo"), i, opened, received, closed, echoed, errors, openSeen, closeSeen));
+            clients.Add (CreateClient (
+              server.GetUrl ("/echo"),
+              i,
+              opened,
+              received,
+              closed,
+              echoed,
+              errors,
+              openSeen,
+              closeSeen,
+              nextMessageIndex
+            ));
 
           for (var clientIndex = 0; clientIndex < clients.Count; clientIndex++) {
             var currentClient = clientIndex;
@@ -136,7 +148,8 @@ namespace WebSocketSharp.StressTests
       ConcurrentDictionary<string, bool> echoed,
       ConcurrentQueue<string> errors,
       int[] openSeen,
-      int[] closeSeen
+      int[] closeSeen,
+      int[] nextMessageIndex
     )
     {
       var client = new WebSocket (url);
@@ -155,6 +168,20 @@ namespace WebSocketSharp.StressTests
         if (!echoed.TryAdd (e.Data, true)) {
           errors.Enqueue ("Received a duplicate echo payload: " + e.Data);
           return;
+        }
+
+        var expectedIndex = Interlocked.Increment (ref nextMessageIndex[clientIndex]) - 1;
+        var expectedPayload = FormatPayload (clientIndex, expectedIndex);
+
+        if (!String.Equals (e.Data, expectedPayload, StringComparison.Ordinal)) {
+          errors.Enqueue (
+            String.Format (
+              "Client {0} received an out-of-order echo. Expected: {1}; actual: {2}.",
+              clientIndex,
+              expectedPayload,
+              e.Data
+            )
+          );
         }
 
         received.Signal ();

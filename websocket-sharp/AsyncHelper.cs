@@ -33,12 +33,12 @@ namespace WebSocketSharp
 {
   internal static class AsyncHelper
   {
-    internal static void Queue (Action action)
+    internal static bool Queue (Action action)
     {
       if (action == null)
         throw new ArgumentNullException ("action");
 
-      ThreadPool.QueueUserWorkItem (state => ((Action) state) (), action);
+      return ThreadPool.QueueUserWorkItem (state => ((Action) state) (), action);
     }
 
     internal static void QueueBlocking (Action action)

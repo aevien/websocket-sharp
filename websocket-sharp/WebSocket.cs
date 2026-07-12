@@ -70,6 +70,40 @@ namespace WebSocketSharp
   /// </remarks>
   public class WebSocket : IDisposable
   {
+    private sealed class AsyncSendOperation
+    {
+      internal AsyncSendOperation (
+        Opcode opcode,
+        Stream sourceStream,
+        Action<bool> completed
+      )
+      {
+        Opcode = opcode;
+        SourceStream = sourceStream;
+        Completed = completed;
+      }
+
+      internal Action<bool> Completed { get; private set; }
+      internal Opcode Opcode { get; private set; }
+      internal Stream SourceStream { get; private set; }
+    }
+
+    private sealed class AsyncSendDispatcher
+    {
+      internal AsyncSendDispatcher ()
+      {
+        Queue = new Queue<AsyncSendOperation> ();
+        SyncRoot = new object ();
+        Accepting = true;
+      }
+
+      internal bool Accepting { get; set; }
+      internal int OutstandingCount { get; set; }
+      internal Queue<AsyncSendOperation> Queue { get; private set; }
+      internal object SyncRoot { get; private set; }
+      internal bool WorkerActive { get; set; }
+    }
+
     #region Private Fields
 
     private AuthenticationChallenge        _authChallenge;
@@ -90,7 +124,7 @@ namespace WebSocketSharp
     private Func<bool>                     _executorBeforeClose;
     private Func<bool>                     _executorBeforeOpen;
     private string                         _extensions;
-    private object                         _forAsyncSendQueue;
+    private AsyncSendDispatcher            _asyncSendDispatcher;
     private object                         _forMessageEventQueue;
     private object                         _forPing;
     private object                         _forSend;
@@ -142,8 +176,6 @@ namespace WebSocketSharp
     private Uri                            _userHeadersOrigin;
     private const string                   _version = "13";
     private TimeSpan                       _waitTime;
-    private int                            _asyncSendQueueLength;
-
     #endregion
 
     #region Public Fields
@@ -1383,6 +1415,7 @@ namespace WebSocketSharp
         if (!accepted)
           return false;
 
+        _asyncSendDispatcher = new AsyncSendDispatcher ();
         _readyState = WebSocketState.Open;
 
         return true;
@@ -1776,6 +1809,8 @@ namespace WebSocketSharp
 
     private void close (PayloadData payloadData, bool send, bool received)
     {
+      AsyncSendDispatcher asyncSendDispatcher;
+
       lock (_forState) {
         if (_readyState == WebSocketState.Closing) {
           _log.Trace ("The close process is already in progress.");
@@ -1792,7 +1827,12 @@ namespace WebSocketSharp
         send = send && _readyState == WebSocketState.Open;
 
         _readyState = WebSocketState.Closing;
+        asyncSendDispatcher = _asyncSendDispatcher;
+        _asyncSendDispatcher = null;
       }
+
+      cancelAsyncSendDispatcher (asyncSendDispatcher);
+      waitForAsyncSend ();
 
       _log.Trace ("Begin closing the connection.");
 
@@ -1944,6 +1984,7 @@ namespace WebSocketSharp
 
         _retryCountForConnect = -1;
 
+        _asyncSendDispatcher = new AsyncSendDispatcher ();
         _readyState = WebSocketState.Open;
 
         return true;
@@ -2271,7 +2312,6 @@ namespace WebSocketSharp
     {
       _compression = CompressionMethod.None;
       _frameReadTimeout = DefaultFrameReadTimeout;
-      _forAsyncSendQueue = new object ();
       _forPing = new object ();
       _forSend = new object ();
       _forState = new object ();
@@ -2893,16 +2933,33 @@ namespace WebSocketSharp
 
     private bool send (Opcode opcode, Stream sourceStream)
     {
+      return send (opcode, sourceStream, null);
+    }
+
+    private bool send (
+      Opcode opcode,
+      Stream sourceStream,
+      AsyncSendDispatcher asyncSendDispatcher
+    )
+    {
       lock (_forSend) {
         var dataStream = sourceStream;
         var compressed = false;
         var sent = false;
 
         try {
+          if (asyncSendDispatcher != null
+              && !isCurrentAsyncSendDispatcher (asyncSendDispatcher))
+            return false;
+
           if (_compression != CompressionMethod.None) {
             dataStream = sourceStream.Compress (_compression);
             compressed = true;
           }
+
+          if (asyncSendDispatcher != null
+              && !isCurrentAsyncSendDispatcher (asyncSendDispatcher))
+            return false;
 
           sent = send (opcode, dataStream, compressed);
 
@@ -2923,6 +2980,16 @@ namespace WebSocketSharp
         }
 
         return sent;
+      }
+    }
+
+    private bool isCurrentAsyncSendDispatcher (
+      AsyncSendDispatcher dispatcher
+    )
+    {
+      lock (_forState) {
+        return _readyState == WebSocketState.Open
+               && Object.ReferenceEquals (_asyncSendDispatcher, dispatcher);
       }
     }
 
@@ -3001,69 +3068,207 @@ namespace WebSocketSharp
       Action<bool> completed
     )
     {
-      if (!tryIncrementAsyncSendQueue ()) {
-        var msg = "The async send queue is full.";
+      var operation = new AsyncSendOperation (
+                        opcode,
+                        sourceStream,
+                        completed
+                      );
+      AsyncSendDispatcher dispatcher;
+      var startWorker = false;
+      var queueFull = false;
 
-        _log.Error (msg);
-        sourceStream.Dispose ();
+      if (!tryEnqueueAsyncSend (
+             operation,
+             out dispatcher,
+             out startWorker,
+             out queueFull
+           )) {
+        if (queueFull)
+          _log.Error ("The async send queue is full.");
+        else
+          _log.Debug ("The async send could not be queued because the connection state changed.");
 
-        if (completed != null) {
-          try {
-            completed (false);
-          }
-          catch (Exception ex) {
-            _log.Error (ex.Message);
-            _log.Debug (ex.ToString ());
-
-            error (
-              "An exception has occurred during the callback for an async send.",
-              ex
-            );
-          }
-        }
+        disposeAsyncSendStream (operation.SourceStream);
+        invokeAsyncSendCallback (operation, false);
 
         return;
       }
 
-      AsyncHelper.Queue (
-        () => {
-          try {
-            var sent = send (opcode, sourceStream);
+      if (startWorker
+          && !AsyncHelper.Queue (() => drainAsyncSendQueue (dispatcher)))
+        drainAsyncSendQueue (dispatcher);
+    }
 
-            if (completed != null)
-              completed (sent);
-          }
-          catch (Exception ex) {
-            _log.Error (ex.Message);
-            _log.Debug (ex.ToString ());
+    private void cancelAsyncSendDispatcher (
+      AsyncSendDispatcher dispatcher
+    )
+    {
+      if (dispatcher == null)
+        return;
 
-            error (
-              "An exception has occurred during the callback for an async send.",
-              ex
-            );
+      var canceled = new List<AsyncSendOperation> ();
+
+      lock (dispatcher.SyncRoot) {
+        dispatcher.Accepting = false;
+
+        while (dispatcher.Queue.Count > 0)
+          canceled.Add (dispatcher.Queue.Dequeue ());
+      }
+
+      foreach (var operation in canceled) {
+        disposeAsyncSendStream (operation.SourceStream);
+        completeAsyncSend (dispatcher, operation, false);
+      }
+    }
+
+    private void completeAsyncSend (
+      AsyncSendDispatcher dispatcher,
+      AsyncSendOperation operation,
+      bool sent
+    )
+    {
+      if (operation.Completed == null) {
+        decrementAsyncSendQueue (dispatcher);
+
+        return;
+      }
+
+      if (!AsyncHelper.Queue (
+             () => {
+               invokeAsyncSendCallback (operation, sent);
+               decrementAsyncSendQueue (dispatcher);
+             }
+           )) {
+        invokeAsyncSendCallback (operation, sent);
+        decrementAsyncSendQueue (dispatcher);
+      }
+    }
+
+    private void decrementAsyncSendQueue (
+      AsyncSendDispatcher dispatcher
+    )
+    {
+      lock (dispatcher.SyncRoot)
+        dispatcher.OutstandingCount--;
+    }
+
+    private void disposeAsyncSendStream (Stream sourceStream)
+    {
+      try {
+        sourceStream.Dispose ();
+      }
+      catch (Exception ex) {
+        _log.Error (ex.Message);
+        _log.Debug (ex.ToString ());
+      }
+    }
+
+    private void drainAsyncSendQueue (
+      AsyncSendDispatcher dispatcher
+    )
+    {
+      while (true) {
+        AsyncSendOperation operation;
+
+        lock (dispatcher.SyncRoot) {
+          if (dispatcher.Queue.Count == 0) {
+            dispatcher.WorkerActive = false;
+
+            return;
           }
-          finally {
-            decrementAsyncSendQueue ();
-          }
+
+          operation = dispatcher.Queue.Dequeue ();
         }
-      );
+
+        var sent = false;
+
+        try {
+          sent = send (
+                   operation.Opcode,
+                   operation.SourceStream,
+                   dispatcher
+                 );
+        }
+        catch (Exception ex) {
+          _log.Error (ex.Message);
+          _log.Debug (ex.ToString ());
+
+          error (
+            "An exception has occurred during an async send.",
+            ex
+          );
+        }
+
+        completeAsyncSend (dispatcher, operation, sent);
+      }
     }
 
-    private void decrementAsyncSendQueue ()
+    private void invokeAsyncSendCallback (
+      AsyncSendOperation operation,
+      bool sent
+    )
     {
-      lock (_forAsyncSendQueue)
-        _asyncSendQueueLength--;
+      if (operation.Completed == null)
+        return;
+
+      try {
+        operation.Completed (sent);
+      }
+      catch (Exception ex) {
+        _log.Error (ex.Message);
+        _log.Debug (ex.ToString ());
+
+        error (
+          "An exception has occurred during the callback for an async send.",
+          ex
+        );
+      }
     }
 
-    private bool tryIncrementAsyncSendQueue ()
+    private bool tryEnqueueAsyncSend (
+      AsyncSendOperation operation,
+      out AsyncSendDispatcher dispatcher,
+      out bool startWorker,
+      out bool queueFull
+    )
     {
-      lock (_forAsyncSendQueue) {
-        if (_asyncSendQueueLength >= _maxAsyncSendQueueLength)
+      dispatcher = null;
+      startWorker = false;
+      queueFull = false;
+
+      lock (_forState) {
+        if (_readyState != WebSocketState.Open
+            || _asyncSendDispatcher == null)
           return false;
 
-        _asyncSendQueueLength++;
+        dispatcher = _asyncSendDispatcher;
 
-        return true;
+        lock (dispatcher.SyncRoot) {
+          if (!dispatcher.Accepting)
+            return false;
+
+          if (dispatcher.OutstandingCount >= _maxAsyncSendQueueLength) {
+            queueFull = true;
+
+            return false;
+          }
+
+          dispatcher.Queue.Enqueue (operation);
+          dispatcher.OutstandingCount++;
+
+          if (!dispatcher.WorkerActive) {
+            dispatcher.WorkerActive = true;
+            startWorker = true;
+          }
+
+          return true;
+        }
+      }
+    }
+
+    private void waitForAsyncSend ()
+    {
+      lock (_forSend) {
       }
     }
 
@@ -3510,6 +3715,8 @@ namespace WebSocketSharp
     // As server
     internal void Close (PayloadData payloadData, byte[] rawFrame)
     {
+      AsyncSendDispatcher asyncSendDispatcher;
+
       lock (_forState) {
         if (_readyState == WebSocketState.Closing) {
           _log.Trace ("The close process is already in progress.");
@@ -3524,7 +3731,12 @@ namespace WebSocketSharp
         }
 
         _readyState = WebSocketState.Closing;
+        asyncSendDispatcher = _asyncSendDispatcher;
+        _asyncSendDispatcher = null;
       }
+
+      cancelAsyncSendDispatcher (asyncSendDispatcher);
+      waitForAsyncSend ();
 
       _log.Trace ("Begin closing the connection.");
 

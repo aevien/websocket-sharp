@@ -19,7 +19,7 @@ Current release:
 
 Recent fork changes include safer TLS certificate validation defaults, bounded
 client/server handshake timeouts including TLS handshakes, replacement of delegate `BeginInvoke` usage,
-async lifecycle fixes, connect-storm protection, lifecycle stress coverage,
+async lifecycle fixes, FIFO `SendAsync` ordering, connect-storm protection, lifecycle stress coverage,
 stricter RFC 6455 frame validation, bounded receive/send resource limits,
 partial-frame receive timeouts, and bounded HTTP/WebSocket handshake parsing.
 The test suite also guards the public API surface and Unity/IL2CPP compatibility
@@ -45,7 +45,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `129/129` NUnit tests passed on `net472`.
+- Repository normal suite: `135/135` NUnit tests passed on `net472`.
 - Repository stress suite: `10/10` stress tests passed on `net472`.
 - Examples build: legacy `Example`, `Example2`, `Example3` and modern console
   examples under `Examples` build on `net472`.
@@ -59,6 +59,11 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - TLS handshake timeout: silent TLS peers are bounded by client `ConnectionTimeout`, secure `WebSocketServer.HandshakeTimeout`, and secure `HttpServer.HandshakeTimeout`.
 - TLS stress: 20 silent TLS handshakes are disconnected by the server timeout while a valid secure echo client still opens, echoes, and closes.
 - Async lifecycle: repeated `ConnectAsync` / `SendAsync` / `CloseAsync` cycles complete successfully, including a 500-cycle stress run.
+- Async send ordering: immediate binary sends from server `OnOpen` passed 1000/1000
+  external probe connections, and 20000/20000 sequential `SendAsync` pairs
+  arrived in call order. The repository suite also covers blocked and throwing
+  callbacks, bounded queue rejection, close/reconnect cancellation, and stale
+  compressed payload disposal.
 - Connection timeout: silent TCP peers do not keep `Connect()` waiting for the old hardcoded timeout.
 - Proxy path: HTTP CONNECT tunnel echo, silent proxy timeout, failed proxy response, 407 without credentials, and Basic proxy auth retry after a closed challenge connection are covered.
 - Server handshake timeout: silent or slow TCP handshakes are disconnected without blocking valid WebSocket handshakes.
@@ -82,7 +87,9 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
   phrases, response secrets, and HTTP error bodies on client,
   `WebSocketServer`, and `HttpServer` paths.
 - Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
-- Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
+- Load coverage: 100 concurrent clients completed 1000 ordered echo messages
+  each, for 100000 async text sends and callbacks without loss, duplication,
+  ordering errors, or stranded sessions.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
 - Resource lifecycle: repeated connect-storm and slow-handshake rounds return sessions to zero and do not show steady-state thread drift beyond the accepted bounds.
 - Resource abuse stress: 50 rejected handshake-flood clients and 25 fragment-limit clients complete without blocking a valid echo client or stranding sessions.
@@ -169,6 +176,12 @@ resource risks in old WebSocket stacks:
 - `HttpServer.MaxConcurrentHandshakes`: default `128`
 - `HttpServer.MaxPendingHandshakes`: default `4096`
 - `WebSocket.FrameReadTimeout`: default `10 seconds`
+
+Accepted `SendAsync` operations are written by one FIFO dispatcher per physical
+connection. A slow or throwing completion callback does not block later network
+writes. Closing a connection rejects new operations, completes waiting callbacks
+with `false`, disposes their payload streams, and gives a later reconnect a new
+queue so stale data cannot cross connection boundaries.
 
 The HTTP/WebSocket handshake parser also has fixed guardrails:
 
@@ -405,7 +418,13 @@ If you would like to send the data asynchronously, you should use the `WebSocket
 ws.SendAsync (data, completed);
 ```
 
-And also if you would like to do something when the send is complete, you should set `completed` to any `Action<bool>` delegate.
+Sequential calls accepted by the same open connection are written in FIFO order.
+If the bounded async queue is full, or a queued operation is canceled by close,
+its completion callback receives `false`.
+
+If you would like to do something when the send is complete, set `completed` to
+an `Action<bool>` delegate. Completion callbacks run independently from the FIFO
+network writer, so callback code should still provide its own synchronization.
 
 #### Step 6 ####
 
