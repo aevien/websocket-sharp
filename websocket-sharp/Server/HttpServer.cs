@@ -1054,6 +1054,13 @@ namespace WebSocketSharp.Server
           ctx = _listener.GetContext ();
           var accepted = ctx;
           var isWebSocketRequest = accepted.Request.IsUpgradeRequest ("websocket");
+
+          if (isWebSocketRequest && accepted.Request.HasEntityBody) {
+            accepted.Connection.Close (true);
+            ctx = null;
+            continue;
+          }
+
           Action process = () => {
             try {
               if (isWebSocketRequest) {

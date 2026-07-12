@@ -38,8 +38,18 @@ namespace WebSocketSharp
   {
     #region Private Fields
 
-    private int    _code;
-    private string _reason;
+    private int                  _code;
+    private static readonly long _maxErrorBodyLength;
+    private string               _reason;
+
+    #endregion
+
+    #region Static Constructor
+
+    static HttpResponse ()
+    {
+      _maxErrorBodyLength = 64 * 1024;
+    }
 
     #endregion
 
@@ -248,7 +258,14 @@ namespace WebSocketSharp
       int millisecondsTimeout
     )
     {
-      return Read<HttpResponse> (stream, Parse, millisecondsTimeout);
+      return Read<HttpResponse> (
+               stream,
+               Parse,
+               response => response.StatusCode == 101 || response.IsSuccess
+                           ? 0
+                           : _maxErrorBodyLength,
+               millisecondsTimeout
+             );
     }
 
     #endregion

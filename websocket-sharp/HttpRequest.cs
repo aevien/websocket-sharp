@@ -217,7 +217,7 @@ namespace WebSocketSharp
       int millisecondsTimeout
     )
     {
-      return Read<HttpRequest> (stream, Parse, millisecondsTimeout);
+      return Read<HttpRequest> (stream, Parse, request => 0, millisecondsTimeout);
     }
 
     #endregion

@@ -62,6 +62,24 @@ namespace WebSocketSharp.Tests
     }
 
     [Test]
+    public void ProxyBasicAuthenticationReconnectsAfterChunkedChallenge ()
+    {
+      using (var server = LoopbackServer.Start (s => s.AddWebSocketService<WebSocketLoopbackTests.EchoBehavior> ("/echo")))
+      using (var proxy = LoopbackProxyServer.StartBasicAuthChunkedTunnel ())
+      using (var client = new WebSocket (server.GetUrl ("/echo"))) {
+        client.SetProxy (proxy.GetUrl (), "user", "pass");
+
+        RoundTrip (client, "chunked authenticated proxy hello");
+
+        Assert.That (proxy.ConnectionCount, Is.GreaterThanOrEqualTo (2));
+        Assert.That (proxy.ConnectRequestCount, Is.EqualTo (2));
+        Assert.That (proxy.AuthorizedConnectCount, Is.EqualTo (1));
+        Assert.That (proxy.LastProxyAuthorization, Does.StartWith ("Basic "));
+        Assert.That (proxy.TunnelCount, Is.EqualTo (1));
+      }
+    }
+
+    [Test]
     public void ProxyConnectFailureDoesNotOpen ()
     {
       using (var proxy = LoopbackProxyServer.StartRejecting ())
@@ -121,7 +139,11 @@ namespace WebSocketSharp.Tests
 
         client.Connect ();
 
-        WaitFor (opened, "The proxied client did not open.");
+        if (!opened.Wait (Timeout)) {
+          AssertNoError (error);
+          Assert.Fail ("The proxied client did not open.");
+        }
+
         AssertNoError (error);
 
         client.Send (payload);

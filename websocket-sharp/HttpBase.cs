@@ -162,7 +162,11 @@ namespace WebSocketSharp
       return enc.GetString (_messageBodyData);
     }
 
-    private static byte[] readMessageBodyFrom (Stream stream, string length)
+    private static byte[] readMessageBodyFrom (
+      Stream stream,
+      string length,
+      long maxLength
+    )
     {
       long len;
 
@@ -176,6 +180,12 @@ namespace WebSocketSharp
         var msg = "Less than zero.";
 
         throw new ArgumentOutOfRangeException ("length", msg);
+      }
+
+      if (len > maxLength) {
+        var msg = "The length of the message body is greater than the max length.";
+
+        throw new InvalidOperationException (msg);
       }
 
       return len > 1024
@@ -289,6 +299,7 @@ namespace WebSocketSharp
     protected static T Read<T> (
       Stream stream,
       Func<string[], T> parser,
+      Func<T, long> getMaxMessageBodyLength,
       int millisecondsTimeout
     )
       where T : HttpBase
@@ -313,10 +324,32 @@ namespace WebSocketSharp
         var header = readMessageHeaderFrom (stream);
         ret = parser (header);
 
-        var contentLen = ret.Headers["Content-Length"];
+        var maxMessageBodyLength = getMaxMessageBodyLength (ret);
+        var transferEncoding = ret.Headers["Transfer-Encoding"];
 
-        if (contentLen != null && contentLen.Length > 0)
-          ret._messageBodyData = readMessageBodyFrom (stream, contentLen);
+        if (transferEncoding != null && transferEncoding.Length > 0) {
+          if (maxMessageBodyLength == 0) {
+            var msg = "Transfer-Encoding is not supported in a bodyless WebSocket handshake.";
+
+            throw new InvalidOperationException (msg);
+          }
+
+          // The body is not used by the WebSocket client. Closing the stream
+          // lets authentication, proxy, and redirect handling reconnect safely.
+          var headers = (WebHeaderCollection) ret.Headers;
+
+          headers.InternalSet ("Connection", "close", true);
+        }
+        else {
+          var contentLen = ret.Headers["Content-Length"];
+
+          if (contentLen != null && contentLen.Length > 0)
+            ret._messageBodyData = readMessageBodyFrom (
+                                     stream,
+                                     contentLen,
+                                     maxMessageBodyLength
+                                   );
+        }
       }
       catch (Exception ex) {
         exception = ex;

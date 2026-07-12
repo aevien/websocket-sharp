@@ -15,7 +15,8 @@ namespace WebSocketSharp.Tests
       Silent,
       Reject,
       Tunnel,
-      BasicAuthTunnel
+      BasicAuthTunnel,
+      BasicAuthChunkedTunnel
     }
 
     private readonly object _sync = new object ();
@@ -53,6 +54,11 @@ namespace WebSocketSharp.Tests
     public static LoopbackProxyServer StartBasicAuthTunnel ()
     {
       return new LoopbackProxyServer (ProxyMode.BasicAuthTunnel);
+    }
+
+    public static LoopbackProxyServer StartBasicAuthChunkedTunnel ()
+    {
+      return new LoopbackProxyServer (ProxyMode.BasicAuthChunkedTunnel);
     }
 
     public static LoopbackProxyServer StartRejecting ()
@@ -171,8 +177,33 @@ namespace WebSocketSharp.Tests
           return;
         }
 
-        if (_mode == ProxyMode.BasicAuthTunnel
+        if ((_mode == ProxyMode.BasicAuthTunnel
+             || _mode == ProxyMode.BasicAuthChunkedTunnel)
             && String.IsNullOrEmpty (LastProxyAuthorization)) {
+          if (_mode == ProxyMode.BasicAuthChunkedTunnel) {
+            WriteResponse (
+              stream,
+              "HTTP/1.1 407 Proxy Authentication Required",
+              "Proxy-Authenticate: Basic realm=\"loopback\"",
+              "Transfer-Encoding: chunked"
+            );
+
+            var body = Encoding.ASCII.GetBytes ("5\r\nerror\r\n0\r\n\r\n");
+
+            try {
+              stream.Write (body, 0, body.Length);
+              stream.Flush ();
+            }
+            catch {
+            }
+
+            while (!_disposed && !IsDisconnected (client))
+              Thread.Sleep (10);
+
+            client.Close ();
+            return;
+          }
+
           WriteResponse (
             stream,
             "HTTP/1.1 407 Proxy Authentication Required",
@@ -189,6 +220,17 @@ namespace WebSocketSharp.Tests
       }
       catch {
         client.Close ();
+      }
+    }
+
+    private static bool IsDisconnected (TcpClient client)
+    {
+      try {
+        return client.Client.Poll (0, SelectMode.SelectRead)
+               && client.Client.Available == 0;
+      }
+      catch {
+        return true;
       }
     }
 

@@ -45,7 +45,7 @@ websocket-sharp supports:
 
 The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
-- Repository normal suite: `97/97` NUnit tests passed on `net472`.
+- Repository normal suite: `109/109` NUnit tests passed on `net472`.
 - Repository stress suite: `10/10` stress tests passed on `net472`.
 - Examples build: legacy `Example`, `Example2`, `Example3` and modern console
   examples under `Examples` build on `net472`.
@@ -66,6 +66,8 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Bounded HTTP upgrade handshakes: an `HttpServer` configured for 2 active and 1 pending handshake opened 3 of 20 blocked upgrade requests, rejected 17, recovered for echo, and passed `Stop` / `Start` reuse.
 - Shutdown isolation: a blocked user handshake callback kept the server in `ShuttingDown`, prevented restart with a live old worker, and allowed a clean stop, restart, and echo after the callback exited.
 - Handshake parser limits: oversized handshake headers, too-long request/header lines, and header-count flooding are rejected before a WebSocket session starts.
+- Handshake body limits: upgrade requests and successful handshake responses reject any body before reading it; HTTP error bodies stop at `64 KiB`; declared `1 GiB`, chunked, and `101 Content-Length: 1` probes all transmitted `0` body bytes before disconnect.
+- Chunked challenge compatibility: a chunked `407 Proxy Authentication Required` response is handled by closing the unusable connection, reconnecting with Basic credentials, opening the tunnel, and completing echo.
 - Client handshake abuse: malicious server responses with too many headers, too-long status/header lines, or invalid status lines are rejected without opening the WebSocket or hanging `Connect()`.
 - Load coverage: 50 concurrent clients completed 100 echo messages each, for 5000 async text echo sends and callbacks.
 - Connect storm coverage: 50 simultaneous `ConnectAsync` clients open and close without ThreadPool starvation.
@@ -158,6 +160,13 @@ The HTTP/WebSocket handshake parser also has fixed guardrails:
 - Maximum handshake header section: `8 KiB`
 - Maximum request/header line length: `2 KiB`
 - Maximum parsed header fields: `64`
+- WebSocket upgrade request body: `0 bytes`
+- Successful WebSocket/proxy handshake response body: `0 bytes`
+- HTTP error response body read during handshake: `64 KiB`
+- `Transfer-Encoding` on upgrade requests and successful handshake responses:
+  rejected
+- `Transfer-Encoding` on HTTP error responses: body skipped and connection
+  forced closed before authentication, proxy, or redirect retry
 
 Set configurable runtime limits before `Connect`, `ConnectAsync`, or server
 `Accept`. For server services, set the matching properties on `WebSocketBehavior` in
