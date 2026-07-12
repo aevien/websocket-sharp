@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Validate tag
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_name }}' -notmatch '^v\d+\.\d+\.\d+$') {
+            throw 'Release tags must use vMAJOR.MINOR.PATCH.'
+          }
+
+          $mainContainsCommit = git branch -r --contains '${{ github.sha }}' |
+            Where-Object { $_.Trim() -eq 'origin/main' }
+
+          if (-not $mainContainsCommit) {
+            throw 'Release tag commit must already be part of origin/main.'
+          }
+
+      - name: Restore
+        run: dotnet restore websocket-sharp.sln
+
+      - name: Build
+        run: dotnet build websocket-sharp.sln -c Release --no-restore -p:TreatWarningsAsErrors=true
+
+      - name: Unit tests
+        run: dotnet test tests/WebSocketSharp.Tests/WebSocketSharp.Tests.csproj -c Release --no-build --no-restore
+
+      - name: Stress tests
+        run: dotnet test tests/WebSocketSharp.StressTests/WebSocketSharp.StressTests.csproj -c Release --no-build --no-restore --filter TestCategory=Stress
+
+      - name: Build release assets
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.Substring(1)
+          .\scripts\Build-Release.ps1 `
+            -Version $version `
+            -OutputDirectory "$env:RUNNER_TEMP\websocket-sharp-release" `
+            -SkipBuild
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem -LiteralPath "$env:RUNNER_TEMP\websocket-sharp-release" -File |
+            ForEach-Object { $_.FullName }
+
+          & gh release create '${{ github.ref_name }}' @assets `
+            --verify-tag `
+            --title 'websocket-sharp ${{ github.ref_name }}' `
+            --notes-file RELEASE_NOTES.md
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub release creation failed with exit code $LASTEXITCODE."
+          }

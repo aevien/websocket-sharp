@@ -4,6 +4,7 @@ Backup*
 _UpgradeReport_Files
 bin
 obj
+/artifacts/
 
 *.mdb
 *.pdb

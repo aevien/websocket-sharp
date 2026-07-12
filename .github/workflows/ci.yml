@@ -34,3 +34,13 @@ jobs:
 
       - name: Stress tests
         run: dotnet test tests/WebSocketSharp.StressTests/WebSocketSharp.StressTests.csproj -c Release --no-build --no-restore --filter TestCategory=Stress
+
+      - name: Verify release package
+        shell: pwsh
+        run: |
+          $fileVersion = (Get-Item '.\websocket-sharp\bin\Release\net472\websocket-sharp.dll').VersionInfo.FileVersion
+          $version = $fileVersion -replace '\.0$', ''
+          .\scripts\Build-Release.ps1 `
+            -Version $version `
+            -OutputDirectory "$env:RUNNER_TEMP\websocket-sharp-package-proof" `
+            -SkipBuild

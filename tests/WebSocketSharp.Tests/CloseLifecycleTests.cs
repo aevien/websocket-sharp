@@ -266,6 +266,10 @@ namespace WebSocketSharp.Tests
 
         WaitFor (closed, "The client did not close.");
         WaitUntil (
+          () => ThrowingCloseBehavior.CloseCount == 1,
+          "The behavior did not receive OnClose."
+        );
+        WaitUntil (
           () => sessions.Count == 0,
           "The server kept a session after an exception-throwing behavior OnClose."
         );
