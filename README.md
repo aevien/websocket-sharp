@@ -1,6 +1,6 @@
 ![Logo](websocket-sharp_logo.png)
 
-## Welcome to websocket-sharp! ##
+## websocket-sharp for Unity and .NET 4.x ##
 
 This fork is maintained for Unity/.NET 4.x usage while keeping the original
 `websocket-sharp` assembly identity stable for existing Unity projects.
@@ -36,6 +36,21 @@ websocket-sharp supports:
 - [Connecting through the HTTP proxy server](#connecting-through-the-http-proxy-server)
 - .NET Framework **4.7.2** / Unity **.NET 4.x** compatible environments
 
+### Compatibility scope ###
+
+| Environment | Status |
+| --- | --- |
+| .NET Framework 4.7.2 | Primary build and test target (`net472`) |
+| Unity Editor and Standalone with the .NET 4.x profile | Supported as a managed plugin |
+| Unity IL2CPP on platforms with managed TCP sockets | Compatible by design; Windows x64 IL2CPP has been runtime-verified |
+| Other Unity IL2CPP targets | Require a runtime test on the actual target platform |
+| Unity WebGL | Not supported by this DLL; use the browser JavaScript WebSocket implementation |
+| Windows 7 and Windows 8 | Outside this fork's compatibility target |
+
+The library intentionally remains on `net472` to preserve compatibility with
+existing Unity projects. It is not a modern .NET (`net8.0`, `net9.0`, or later)
+target.
+
 ## Branches ##
 
 - `main` contains release-ready code.
@@ -53,8 +68,9 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 - Assembly identity: assembly name, strong-name token, and `AssemblyVersion("1.0.2.32832")` remain stable for existing Unity references.
 - Version metadata: assembly file/informational versions and DLL file/product versions all report `1.3.1.0`.
 - Public API snapshot: exported public types, constructors, methods, properties, events, fields, and enum values are compared to a checked-in snapshot.
-- Unity/IL2CPP static scan: library sources are checked for known incompatible constructs such as delegate `BeginInvoke`/`EndInvoke`, runtime code generation, `Thread.Abort`, binary serialization, P/Invoke, runtime compilation, remoting, and dynamic assembly loading.
+- Unity/IL2CPP static scan: library sources are checked for known incompatible constructs such as delegate `BeginInvoke`/`EndInvoke`, runtime code generation, `Thread.Abort`, binary serialization, P/Invoke, runtime compilation, remoting, and dynamic assembly loading. This scan is a compatibility gate, not a platform build.
 - Unity smoke: the updated DLL was imported into a Unity project with Editor/Standalone plugin settings and passed the project smoke test.
+- Unity transport integration: the imported production DLL passed immediate-first-message and FIFO tests through the MST adapter. A Windows x64 IL2CPP player received all first messages and all ordered message pairs without the historical post-open delay.
 - TLS/WSS: default certificate validation rejects certificate policy errors, custom validation remains user-controlled, and secure loopback echo works with an explicitly trusted self-signed certificate.
 - TLS handshake timeout: silent TLS peers are bounded by client `ConnectionTimeout`, secure `WebSocketServer.HandshakeTimeout`, and secure `HttpServer.HandshakeTimeout`.
 - TLS stress: 20 silent TLS handshakes are disconnected by the server timeout while a valid secure echo client still opens, echoes, and closes.
@@ -104,7 +120,8 @@ The current repository state was verified as a self-built Unity/.NET 4.x DLL.
 
 websocket-sharp is built as a single assembly, **websocket-sharp.dll**.
 
-This fork uses an SDK-style project targeting `net472`.
+This fork uses SDK-style projects targeting `net472`. A development build of
+the library alone can be created with:
 
 ```powershell
 dotnet build websocket-sharp\websocket-sharp.csproj -c Release
@@ -123,6 +140,21 @@ dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release
 dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --filter TestCategory=Stress
 ```
 
+A production release must pass the same gates as CI before packaging. The .NET
+8 SDK is used to build the SDK-style projects while the resulting library still
+targets .NET Framework 4.7.2:
+
+```powershell
+dotnet restore websocket-sharp.sln
+dotnet build websocket-sharp.sln -c Release --no-restore -p:TreatWarningsAsErrors=true
+dotnet test tests\WebSocketSharp.Tests\WebSocketSharp.Tests.csproj -c Release --no-build --no-restore
+dotnet test tests\WebSocketSharp.StressTests\WebSocketSharp.StressTests.csproj -c Release --no-build --no-restore --filter TestCategory=Stress
+.\scripts\Build-Release.ps1 -Version 1.3.1 -SkipBuild
+```
+
+`Build-Release.ps1` packages an already verified build. It does not run the test
+suites itself, so do not use it as a substitute for the commands above.
+
 GitHub Actions:
 
 - `CI` runs on `main`, `dev`, and pull requests to those branches.
@@ -137,12 +169,19 @@ Download the Unity release from the GitHub release page:
 
 - [websocket-sharp.dll](https://github.com/aevien/websocket-sharp/releases/download/v1.3.1/websocket-sharp.dll)
 - [websocket-sharp-v1.3.1-unity-net472.zip](https://github.com/aevien/websocket-sharp/releases/download/v1.3.1/websocket-sharp-v1.3.1-unity-net472.zip)
+- [SHA256SUMS.txt](https://github.com/aevien/websocket-sharp/releases/download/v1.3.1/SHA256SUMS.txt)
+
+Verify downloaded release files against `SHA256SUMS.txt` before importing them.
 
 ### Self Build ###
 
-You should add your websocket-sharp.dll (e.g. `/path/to/websocket-sharp/bin/Release/net472/websocket-sharp.dll`) to the library references of your project.
+Add `websocket-sharp.dll` (for example,
+`websocket-sharp\bin\Release\net472\websocket-sharp.dll`) to your project's
+assembly references.
 
-If you would like to use that dll in your Unity project, you should add it to any folder of your project (e.g. `Assets/Plugins`) in the **Unity Editor**.
+For Unity, place the DLL under `Assets`, normally in `Assets/Plugins` or the
+plugin folder owned by the transport that uses it. Preserve the existing Unity
+`.meta` file when replacing an already imported DLL.
 
 Recommended Unity import settings for this managed DLL:
 
@@ -151,89 +190,238 @@ Recommended Unity import settings for this managed DLL:
 - `Any Platform`: disabled when you need explicit platform control
 - Include `Editor`, `Standalone`, and any mobile/IL2CPP target you actually test
 - Exclude `WebGL`; use the browser JavaScript WebSocket layer there
-- Assembly target should show `.NET 4.x`
+- In Player Settings, use the `.NET Framework` API Compatibility Level where the
+  Unity version exposes that choice
 
-For IL2CPP builds, keep this DLL as a managed plugin. The fork does not use
-runtime code generation or delegate `BeginInvoke`/`EndInvoke`, so it is suitable
-for Unity .NET 4.x profiles where managed sockets are available.
+For IL2CPP builds, keep this DLL as a managed plugin. Repository verification
+includes a source-level scan for known incompatible constructs such as runtime
+code generation and delegate `BeginInvoke`/`EndInvoke`. Windows x64 IL2CPP has
+also passed a runtime transport test. The source scan does not replace IL2CPP
+compilation and runtime testing on every mobile or console target used by your
+project.
 
-## Runtime Limits ##
+## Fork API Reference ##
 
-The fork keeps the original API shape but adds bounded defaults for common
-resource risks in old WebSocket stacks:
+This section documents the public configuration added by this fork. The values
+are per `WebSocket`, per server host, or per server behavior; the static
+`Default*` fields expose defaults for inspection and are not global mutable
+settings.
 
-- `WebSocket.MaxFramePayloadLength`: default `16 MiB`
-- `WebSocket.MaxMessagePayloadLength`: default `64 MiB`
-- `WebSocket.MaxMessageEventQueueLength`: default `1024`
-- `WebSocket.MaxAsyncSendQueueLength`: default `256`
-- `WebSocket.ConnectionTimeout`: default `10 seconds`
-- `WebSocket.MaxRedirections`: default `5`, valid range `0..100`
-- `WebSocket.AllowInsecureRedirection`: default `false`
-- `WebSocketServer.HandshakeTimeout`: default `10 seconds`
-- `HttpServer.HandshakeTimeout`: default `10 seconds`
-- `WebSocketServer.MaxConcurrentHandshakes`: default `128`
-- `WebSocketServer.MaxPendingHandshakes`: default `4096`
-- `HttpServer.MaxConcurrentHandshakes`: default `128`
-- `HttpServer.MaxPendingHandshakes`: default `4096`
-- `WebSocket.FrameReadTimeout`: default `10 seconds`
+### Configuration lifecycle ###
 
-Accepted `SendAsync` operations are written by one FIFO dispatcher per physical
-connection. A slow or throwing completion callback does not block later network
-writes. Closing a connection rejects new operations, completes waiting callbacks
-with `false`, disposes their payload streams, and gives a later reconnect a new
-queue so stale data cannot cross connection boundaries.
+- Set client `WebSocket` properties before `Connect()` or `ConnectAsync()`.
+  They can be changed only while `ReadyState` is `New` or `Closed`; otherwise
+  the setter throws `InvalidOperationException`.
+- Set `WebSocketBehavior` properties in its constructor or in the initializer
+  passed to `AddWebSocketService`. Changing them after the session has been
+  registered throws `InvalidOperationException`.
+- Set `WebSocketServer` and `HttpServer` handshake properties before `Start()`.
+  Their setters accept values only while the server state is `Ready` or `Stop`;
+  a set attempted while the server is running is ignored.
+- Invalid numeric values throw `ArgumentOutOfRangeException`.
 
-The HTTP/WebSocket handshake parser also has fixed guardrails:
+### Published defaults ###
 
-- Maximum handshake header section: `8 KiB`
-- Maximum request/header line length: `2 KiB`
-- Maximum parsed header fields: `64`
-- WebSocket upgrade request body: `0 bytes`
-- Successful WebSocket/proxy handshake response body: `0 bytes`
-- HTTP error response body read during handshake: `64 KiB`
-- `Transfer-Encoding` on upgrade requests and successful handshake responses:
-  rejected
-- `Transfer-Encoding` on HTTP error responses: body skipped and connection
-  forced closed before authentication, proxy, or redirect retry
+| Read-only field | Value | Used by |
+| --- | ---: | --- |
+| `WebSocket.DefaultMaxFramePayloadLength` | `16 MiB` | `WebSocket.MaxFramePayloadLength`, `WebSocketBehavior.MaxFramePayloadLength` |
+| `WebSocket.DefaultMaxMessagePayloadLength` | `64 MiB` | `WebSocket.MaxMessagePayloadLength`, `WebSocketBehavior.MaxMessagePayloadLength` |
+| `WebSocket.DefaultMaxMessageEventQueueLength` | `1024` | Receive-event queues |
+| `WebSocket.DefaultMaxAsyncSendQueueLength` | `256` | Asynchronous send queues |
+| `WebSocket.DefaultFrameReadTimeout` | `10 seconds` | Partial-frame reads |
 
-Set configurable runtime limits before `Connect`, `ConnectAsync`, or server
-`Accept`. For server services, set the matching properties on `WebSocketBehavior` in
-`AddWebSocketService`, for example:
+### WebSocket client and connection settings ###
+
+| Property | Default | Valid values | Effect |
+| --- | ---: | --- | --- |
+| `ConnectionTimeout` | `10 seconds` | `> 0` | Bounds each TCP connect, proxy response, TLS authentication, and WebSocket handshake response stage. Client instances only. |
+| `FrameReadTimeout` | `10 seconds` | `> 0` | Inactivity timeout after a frame has started. Progress resets the timer; an idle open connection is unaffected. A timeout closes with `1002` (`ProtocolError`). |
+| `MaxFramePayloadLength` | `16 MiB` | `>= 125` bytes | Rejects an individual received frame above the limit with close code `1009` (`TooBig`). |
+| `MaxMessagePayloadLength` | `64 MiB` | `> 0` bytes | Rejects an assembled or decompressed message above the limit with close code `1009`; `OnMessage` is not invoked for it. |
+| `MaxMessageEventQueueLength` | `1024` | `> 0` | Bounds received events waiting for `OnMessage`, including ping events when `EmitOnPing` is enabled. Overflow closes with `1008` (`PolicyViolation`). |
+| `MaxAsyncSendQueueLength` | `256` | `> 0` | Bounds accepted asynchronous send operations, including active and callback-pending work. Rejected operations complete with `false`. |
+| `EnableRedirection` | `false` | `true` or `false` | Enables HTTP redirect handling. Redirects remain disabled unless this existing property is explicitly enabled. Client instances only. |
+| `MaxRedirections` | `5` | `0..100` | Maximum redirects followed when `EnableRedirection` is enabled. `0` rejects every redirect. Client instances only. |
+| `AllowInsecureRedirection` | `false` | `true` or `false` | Allows an explicit `wss://` to `ws://` downgrade. Keep `false` in production unless the downgrade is intentional. Client instances only. |
+
+`MaxFramePayloadLength` and `MaxMessagePayloadLength` are receive limits. They
+do not resize outgoing messages. The two limits are independent, so the message
+limit may be lower than the frame limit. Keep the message limit at least as large
+as the largest application message you expect after decompression. The message
+event queue limit counts waiting events, not the handler currently executing.
+
+`ConnectionTimeout` is a per-stage timeout, not one deadline for the entire
+`Connect()` operation. Authentication retries, proxy retries, and redirect hops
+can each consume another timeout interval. Timeout values are represented
+internally as whole milliseconds and are effectively clamped to the range from
+`1` through `Int32.MaxValue` milliseconds.
+
+Complete client configuration example:
+
+```csharp
+using System;
+using WebSocketSharp;
+
+var ws = new WebSocket ("wss://example.com/socket");
+
+ws.ConnectionTimeout = TimeSpan.FromSeconds (10);
+ws.FrameReadTimeout = TimeSpan.FromSeconds (10);
+ws.MaxFramePayloadLength = 2L * 1024 * 1024;
+ws.MaxMessagePayloadLength = 8L * 1024 * 1024;
+ws.MaxMessageEventQueueLength = 512;
+ws.MaxAsyncSendQueueLength = 256;
+
+ws.EnableRedirection = true;
+ws.MaxRedirections = 5;
+ws.AllowInsecureRedirection = false;
+
+ws.OnOpen += (sender, e) => ws.SendAsync ("ready", completed => {
+  if (!completed)
+    Console.Error.WriteLine ("The send was rejected or canceled.");
+});
+
+ws.OnMessage += (sender, e) => Console.WriteLine (e.Data);
+ws.OnError += (sender, e) => Console.Error.WriteLine (e.Message);
+ws.ConnectAsync ();
+```
+
+### WebSocketBehavior session settings ###
+
+Each server session receives its own `WebSocketBehavior` instance. These
+properties copy their values to the session's underlying `WebSocket` when the
+session is registered:
+
+| Property | Default | Valid values | Effect |
+| --- | ---: | --- | --- |
+| `FrameReadTimeout` | `10 seconds` | `> 0` | Partial-frame read timeout for this service session. |
+| `MaxFramePayloadLength` | `16 MiB` | `>= 125` bytes | Per-session received frame limit. |
+| `MaxMessagePayloadLength` | `64 MiB` | `> 0` bytes | Per-session assembled/decompressed message limit. |
+| `MaxMessageEventQueueLength` | `1024` | `> 0` | Per-session receive-event queue limit. |
+| `MaxAsyncSendQueueLength` | `256` | `> 0` | Per-session asynchronous send queue limit. |
 
 ```csharp
 wssv.AddWebSocketService<Echo> (
   "/Echo",
-  s => {
-    s.MaxFramePayloadLength = 1024 * 1024;
-    s.MaxMessagePayloadLength = 4 * 1024 * 1024;
-    s.FrameReadTimeout = TimeSpan.FromSeconds (5);
+  session => {
+    session.FrameReadTimeout = TimeSpan.FromSeconds (5);
+    session.MaxFramePayloadLength = 1024 * 1024;
+    session.MaxMessagePayloadLength = 4 * 1024 * 1024;
+    session.MaxMessageEventQueueLength = 256;
+    session.MaxAsyncSendQueueLength = 128;
   }
 );
 ```
 
-`FrameReadTimeout` does not close an idle open connection with no incoming
-bytes. It applies after a peer starts a WebSocket frame and then stalls while
-the rest of that frame is being read.
+### Server handshake settings ###
 
-For `wss://` clients, `ConnectionTimeout` also bounds the TLS handshake. For
-secure `WebSocketServer` and `HttpServer` instances, `HandshakeTimeout` bounds
-both the TLS handshake and the first HTTP/WebSocket request.
+The same host-level API is available on `WebSocketServer` and `HttpServer`:
 
-`MaxConcurrentHandshakes` and `MaxPendingHandshakes` bound only connections
-that are still completing the WebSocket handshake. They do not limit already
-established sessions or total CCU. Configure both properties before `Start()`.
+| Property | Default | Valid values | Effect |
+| --- | ---: | --- | --- |
+| `HandshakeTimeout` | `10 seconds` | `> 0` | Bounds the first HTTP/WebSocket request. On secure servers, TLS and the first request each receive a timeout interval. |
+| `MaxConcurrentHandshakes` | `128` | `>= 1` | Maximum handshakes executing at once. It does not limit established sessions or CCU. |
+| `MaxPendingHandshakes` | `4096` | `>= 1` | Maximum accepted handshakes waiting for a worker. Excess connections are closed and rejection counts are rate-limited in the log. |
 
-Client redirects remain opt-in through `EnableRedirection`. Redirects from
-`wss://` to `ws://` are rejected unless `AllowInsecureRedirection` is explicitly
-enabled. A cross-origin redirect does not carry HTTP authentication, cookies,
-custom user headers, or TLS client certificates to the new origin. The same
-isolation is retained if the same `WebSocket` instance reconnects after the
-redirect.
+`MaxConcurrentHandshakes` is not a client or CCU limit. For example, a value of
+`128` permits 128 connections to perform the opening handshake at the same time;
+after they open, those sessions no longer occupy handshake capacity.
+The maximum admitted opening load is the active limit plus the pending limit.
+When the pending queue is full, the TCP connection is closed without a WebSocket
+session; the rejection warning is logged for the first rejection and then every
+256 rejections to avoid log flooding.
 
-Built-in handshake Debug logs are sanitized. Public HTTP/WebSocket context
-`ToString()` methods retain their historical raw formatting for compatibility;
-applications should not write those values to production logs without their
-own redaction.
+```csharp
+var wssv = new WebSocketServer (4649) {
+  HandshakeTimeout = TimeSpan.FromSeconds (10),
+  MaxConcurrentHandshakes = 128,
+  MaxPendingHandshakes = 4096
+};
+
+wssv.AddWebSocketService<Echo> ("/Echo");
+wssv.Start ();
+```
+
+Use the same properties on `HttpServer` when it accepts WebSocket upgrades.
+Normal HTTP requests are not dispatched through the bounded WebSocket handshake
+queue.
+
+`Stop()` waits up to five seconds for handshake workers. If user handshake code
+is still blocked, the server remains in `ShuttingDown` and cannot restart yet.
+Release the callback and call `Stop()` again before `Start()`.
+
+### Async send ordering and lifecycle ###
+
+Accepted `SendAsync` operations are written by one FIFO dispatcher per physical
+connection. This guarantees call order for sequential sends accepted by that
+connection, including sends made immediately from `OnOpen`. An arbitrary delay
+after `OnOpen` is not required by the library.
+
+- A slow or throwing completion callback does not block later network writes.
+- Queue overflow rejects the operation and invokes its completion callback with
+  `false`.
+- Closing the connection rejects new sends, cancels queued operations with
+  `false`, and disposes their internally owned payload streams.
+- Reconnecting the same `WebSocket` creates a fresh dispatcher, so data queued
+  for the old connection cannot be sent through the new one.
+- Completion callbacks are asynchronous application callbacks. Synchronize
+  shared state and marshal work to Unity's main thread yourself.
+
+FIFO applies to physical network writes, not to completion callback execution.
+An operation rejected immediately because the queue is full or the connection
+state changed may receive its `false` callback synchronously.
+
+### Redirect, credential, TLS, and log safety ###
+
+Client redirects remain opt-in through the existing `EnableRedirection`
+property. Redirects from `wss://` to `ws://` are rejected unless
+`AllowInsecureRedirection` is explicitly enabled. A cross-origin redirect does
+not forward HTTP credentials, cookies, custom user headers, or TLS client
+certificates. The isolation also applies when the same `WebSocket` instance
+reconnects after a redirect.
+
+Redirect status codes `301`, `302`, `303`, `307`, and `308` are supported,
+including relative `Location` values. Origins match only when scheme, host, and
+port all match. The server-certificate validation callback remains configured
+across a redirect, while the TLS target host is updated to the redirected host.
+
+The default WSS certificate callback accepts only certificates that pass the
+platform's certificate validation without `SslPolicyErrors`. A custom callback
+is responsible for complete validation; never use a callback that returns
+`true` for every certificate in production.
+
+Client and server TLS protocols default to `SslProtocols.None`, allowing the
+operating system to select enabled protocols. Certificate revocation checking is
+off by default. On a secure server, client certificates are optional by default;
+the default client-certificate callback accepts a valid certificate or no client
+certificate, but rejects certificate name and chain errors. Configure mTLS,
+revocation, and explicit protocol policy on `SslConfiguration` before
+`Connect()` or `Start()` when your deployment requires them. TLS behavior and
+certificate stores remain platform-dependent in Unity.
+
+Built-in handshake Debug logs are sanitized. Request paths, query values,
+authorization, cookies, custom header values, untrusted reason phrases, response
+secrets, and HTTP error bodies are redacted. Public HTTP/WebSocket context
+`ToString()` methods retain their historical raw formatting for API
+compatibility, so do not write those values to production logs without your own
+redaction.
+
+### Fixed handshake parser guardrails ###
+
+These safety limits are intentionally fixed and do not have public setters. The
+`8 KiB`/`2 KiB`/`64 fields` limits apply to the direct `WebSocketServer` and
+client-side HTTP/WebSocket handshake parser. `HttpServer` uses its own HTTP
+listener parser with a `32 KiB` aggregate request-input limit.
+
+| Input | Limit or policy |
+| --- | --- |
+| Complete handshake header section | `8 KiB` |
+| Request, status, or individual header line | `2 KiB` |
+| Parsed header fields | `64` |
+| WebSocket upgrade request body | Rejected; expected size is `0 bytes` |
+| Successful WebSocket or proxy handshake response body | Rejected; expected size is `0 bytes` |
+| HTTP error response body read during handshake | `64 KiB` |
+| `Transfer-Encoding` on upgrade requests or successful handshake responses | Rejected |
+| `Transfer-Encoding` on HTTP error responses | Body is skipped and the connection is closed before authentication, proxy, or redirect retry |
 
 ## Usage ##
 
@@ -249,12 +437,12 @@ namespace Example
   {
     public static void Main (string[] args)
     {
-      using (var ws = new WebSocket ("ws://dragonsnest.far/Laputa")) {
+      using (var ws = new WebSocket ("ws://localhost:4649/Echo")) {
         ws.OnMessage += (sender, e) =>
-                          Console.WriteLine ("Laputa says: " + e.Data);
+                          Console.WriteLine ("Server says: " + e.Data);
 
         ws.Connect ();
-        ws.Send ("BALUS");
+        ws.Send ("Hello");
         Console.ReadKey (true);
       }
     }
@@ -451,15 +639,11 @@ using WebSocketSharp.Server;
 
 namespace Example
 {
-  public class Laputa : WebSocketBehavior
+  public class Echo : WebSocketBehavior
   {
     protected override void OnMessage (MessageEventArgs e)
     {
-      var msg = e.Data == "BALUS"
-                ? "Are you kidding?"
-                : "I'm not available now.";
-
-      Send (msg);
+      Send (e.Data);
     }
   }
 
@@ -467,9 +651,9 @@ namespace Example
   {
     public static void Main (string[] args)
     {
-      var wssv = new WebSocketServer ("ws://dragonsnest.far");
+      var wssv = new WebSocketServer (System.Net.IPAddress.Loopback, 4649);
 
-      wssv.AddWebSocketService<Laputa> ("/Laputa");
+      wssv.AddWebSocketService<Echo> ("/Echo");
       wssv.Start ();
       Console.ReadKey (true);
       wssv.Stop ();
@@ -571,9 +755,10 @@ The type of `TBehavior` must inherit the `WebSocketBehavior` class, and must hav
 
 So you can use a class in the above Step 2 to add the service.
 
-If you create a new instance of the `WebSocketServer` class without a port number, it sets the port number to **80**. So it is necessary to run with root permission.
-
-    $ sudo mono example2.exe
+The parameterless constructor uses port `80`, which may require elevated
+privileges and can conflict with another service. Prefer an explicit
+unprivileged endpoint such as
+`new WebSocketServer (IPAddress.Loopback, 4649)` for local development.
 
 #### Step 4 ####
 
@@ -593,9 +778,8 @@ wssv.Stop ();
 
 ### HTTP Server with the WebSocket ###
 
-I have modified the `System.Net.HttpListener`, `System.Net.HttpListenerContext`, and some other classes from Mono to create an HTTP server that allows to accept the WebSocket handshake requests.
-
-So websocket-sharp provides the `WebSocketSharp.Server.HttpServer` class.
+websocket-sharp includes `WebSocketSharp.Server.HttpServer`, an HTTP listener
+implementation that can also accept WebSocket upgrade requests.
 
 You can add any WebSocket service to your `HttpServer` with the specified behavior and path to the service, by using the `HttpServer.AddWebSocketService<TBehavior> (string)` or `HttpServer.AddWebSocketService<TBehavior> (string, Action<TBehavior>)` method.
 
@@ -642,7 +826,8 @@ wssv.AddWebSocketService<Chat> (
 
 If it is set to `true`, the service will not return the Sec-WebSocket-Extensions header in its handshake response.
 
-I think this is useful when you get something error in connecting the server and exclude the extensions as a cause of the error.
+This can be useful when diagnosing extension negotiation or when a service must
+operate without compression.
 
 ### Secure Connection ###
 
@@ -654,22 +839,23 @@ As a WebSocket client, you should create a new instance of the `WebSocket` class
 var ws = new WebSocket ("wss://example.com");
 ```
 
-If you would like to set a custom validation for the server certificate, you should set the `WebSocket.SslConfiguration.ServerCertificateValidationCallback` property to a callback for it.
+To provide custom server-certificate validation, set
+`WebSocket.SslConfiguration.ServerCertificateValidationCallback` before
+connecting.
 
 ```csharp
 ws.SslConfiguration.ServerCertificateValidationCallback =
-  (sender, certificate, chain, sslPolicyErrors) => {
-    // Do something to validate the server certificate.
-    ...
-
-    return true; // If the server certificate is valid.
-  };
+  (sender, certificate, chain, sslPolicyErrors) =>
+    sslPolicyErrors == System.Net.Security.SslPolicyErrors.None;
 ```
 
 The default callback accepts only certificates that pass platform validation
 without `SslPolicyErrors`. For self-signed or private certificates, provide a
 custom `ServerCertificateValidationCallback` and validate the expected
-certificate explicitly.
+certificate explicitly, for example by pinning its thumbprint or public key.
+Never use a production callback that unconditionally returns `true`. See
+[Examples/SecureAndProxyClient](Examples/SecureAndProxyClient) for an explicit
+thumbprint-pinning example.
 
 As a WebSocket server, you should create a new instance of the `WebSocketServer` or `HttpServer` class with some settings for the secure connection, such as the following.
 
@@ -838,15 +1024,19 @@ var ws = new WebSocket ("ws://example.com");
 ws.SetProxy ("http://localhost:3128", "nobita", "password");
 ```
 
-If your proxy restricts CONNECT destinations, make sure the WebSocket target port is allowed by the proxy configuration.
+If your proxy restricts `CONNECT` destinations, make sure the WebSocket target
+host and port are allowed by the proxy configuration.
 
-```
-# Example proxy policy may need to allow CONNECT to the target WebSocket port.
-```
+The proxy URL must use `http://host[:port]` and cannot contain a path. Passing
+`null` or an empty URL disables a previously configured proxy. Configure the
+proxy only while the client is `New` or `Closed`. Proxy `407` retries support
+Basic and Digest authentication, including challenge responses that close the
+connection or use chunked transfer encoding. `ConnectionTimeout` applies
+separately to the proxy TCP connection and each proxy response.
 
 ### Logging ###
 
-The `WebSocket` class has the own logging function.
+The `WebSocket` class has its own logging function.
 
 You can use it with the `WebSocket.Log` property (returns a `WebSocketSharp.Logger`).
 
@@ -856,7 +1046,7 @@ So if you would like to change the current logging level (`WebSocketSharp.LogLev
 ws.Log.Level = LogLevel.Debug;
 ```
 
-The above means a log with lower than `LogLevel.Debug` cannot be outputted.
+Messages below `LogLevel.Debug` are not emitted in this configuration.
 
 And if you would like to output a log, you should use any of the output methods. The following outputs a log with `LogLevel.Debug`.
 
@@ -915,7 +1105,7 @@ project that already references `websocket-sharp.dll`. It shows main-thread
 dispatch from websocket callbacks, `OnDisable` / `OnDestroy` cleanup, and WebGL
 exclusion.
 
-See `Examples/README.md` for build and run commands.
+See [Examples/README.md](Examples/README.md) for build and run commands.
 
 ## Supported WebSocket Specifications ##
 
